@@ -39,8 +39,6 @@ services:
     build:
       context: ./front-end
       dockerfile: Dockerfile
-      args:
-        - VITE_GRAPHQL_ENDPOINT=http://localhost:3000/graphql
     container_name: meowingful-frontend
     ports:
       - "8080:80"

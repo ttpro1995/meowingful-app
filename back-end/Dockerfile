@@ -6,8 +6,9 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 COPY prisma/ ./prisma/
+COPY prisma.config.ts ./
 
-# Install dependencies
+# Install dependencies including dotenv for prisma config
 RUN npm ci
 
 # Generate Prisma client
@@ -24,12 +25,16 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Install dotenv for Prisma config
+RUN apk add --no-cache python3 make g++
+
 # Copy package files
 COPY package*.json ./
 COPY prisma/ ./prisma/
+COPY prisma.config.ts ./
 
-# Install production dependencies only
-RUN npm ci --only=production
+# Install all dependencies (needed for prisma CLI)
+RUN npm ci
 
 # Generate Prisma client for production
 RUN npx prisma generate
@@ -42,4 +47,4 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 EXPOSE 3000
 
 # Run database migrations and start the application
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main"]
