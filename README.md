@@ -37,8 +37,8 @@ A full-stack web application with user authentication and profile management.
    ```
 
 2. **Access the application:**
-   - Frontend: http://localhost:8080
-   - Backend GraphQL Playground: http://localhost:3000/graphql
+   - Frontend: http://localhost:8500
+   - Backend GraphQL Playground: http://localhost:3500/graphql
    - PostgreSQL: localhost:5432
 
 3. **Stop services:**

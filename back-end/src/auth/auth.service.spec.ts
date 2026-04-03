@@ -48,17 +48,19 @@ describe('AuthService', () => {
       };
 
       mockPrismaService.user.findUnique.mockResolvedValue(null);
+      const newUser = {
+        id: 'uuid-123',
+        username: registerInput.username,
+        name: registerInput.name,
+        bio: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      mockPrismaService.user.create.mockResolvedValue(newUser);
+      mockPrismaService.auth.create.mockResolvedValue({});
+
       mockPrismaService.$transaction.mockImplementation(async (fn) => {
-        const newUser = {
-          id: 'uuid-123',
-          username: registerInput.username,
-          name: registerInput.name,
-          bio: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-        await fn({ ...mockPrismaService });
-        return newUser;
+        return fn(mockPrismaService);
       });
 
       const result = await authService.register(registerInput);
