@@ -1,0 +1,5 @@
+# Prisma Migrations
+# If you are using MySQL, you might need to install the following package:
+# npm install @prisma/adapter-mysql
+
+provider = "postgresql"
