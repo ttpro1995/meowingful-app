@@ -89,7 +89,9 @@ describe('AuthResolver (e2e)', () => {
         .expect(200)
         .expect((res) => {
           expect(res.body.errors).toBeDefined();
-          expect(res.body.errors[0].message).toContain('Username already exists');
+          expect(res.body.errors[0].message).toContain(
+            'Username already exists',
+          );
         });
     });
   });
