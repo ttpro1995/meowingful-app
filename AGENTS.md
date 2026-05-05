@@ -4,6 +4,18 @@ Full-stack web application with user authentication and profile management. **Cu
 
 Helpful documentation is stored in [vibe-doc](vibe-doc/) folder.
 
+## vibe-doc Documentation Index
+
+| Document | Description |
+|----------|-------------|
+| [spec.md](vibe-doc/spec.md) | Complete platform requirements - full technical specification for the multi-tenant CRM & E-Learning system |
+| [architecture.md](vibe-doc/architecture.md) | System architecture, technology decisions, and evolution strategy from MVP to enterprise scale |
+| [development-guide.md](vibe-doc/development-guide.md) | Practical developer guide with setup, workflows, coding patterns, and best practices |
+| [project-overview.md](vibe-doc/project-overview.md) | Business vision, roadmap (phases 1-4), market positioning, and strategic context |
+| [instruction.md](vibe-doc/instruction.md) | Story-driven development process - format, guidelines, and workflow for implementation stories |
+| [story-01-quick-mvp.md](vibe-doc/story-01-quick-mvp.md) | Completed MVP implementation story - reference example showing the user authentication/profile feature |
+| [README.md](vibe-doc/README.md) | Documentation index with navigation by role and quick project status summary |
+
 See [README.md](README.md) for complete setup instructions and API documentation.
 See [architecture.md](architecture.md) for architecture of the application.
 
