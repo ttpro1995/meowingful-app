@@ -2,7 +2,10 @@
 
 Full-stack web application with user authentication and profile management. **Current implementation is MVP** - see [vibe-doc/spec.md](vibe-doc/spec.md) for full platform vision (multi-tenant CRM & E-Learning system).
 
+Helpful documentation is stored in [vibe-doc](vibe-doc/) folder.
+
 See [README.md](README.md) for complete setup instructions and API documentation.
+See [architecture.md](architecture.md) for architecture of the application.
 
 ## Quick Start Commands
 
