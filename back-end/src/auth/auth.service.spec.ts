@@ -1,7 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  ConflictException,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
 describe('AuthService', () => {
@@ -224,7 +228,10 @@ describe('AuthService', () => {
         newPassword: 'newpassword',
       };
 
-      const hashedPassword = await bcrypt.hash(changePasswordInput.currentPassword, 10);
+      const hashedPassword = await bcrypt.hash(
+        changePasswordInput.currentPassword,
+        10,
+      );
 
       mockPrismaService.auth.findFirst.mockResolvedValue({
         id: 'auth-uuid',
@@ -232,7 +239,10 @@ describe('AuthService', () => {
         passwordHash: hashedPassword,
       });
 
-      const result = await authService.changePassword(userId, changePasswordInput);
+      const result = await authService.changePassword(
+        userId,
+        changePasswordInput,
+      );
 
       expect(result).toBe(true);
     });

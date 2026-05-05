@@ -1,7 +1,17 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
-import { RegisterInput, LoginInput, UpdateUserInput, ChangePasswordInput } from './auth.types';
+import {
+  RegisterInput,
+  LoginInput,
+  UpdateUserInput,
+  ChangePasswordInput,
+} from './auth.types';
 
 @Injectable()
 export class AuthService {
@@ -77,7 +87,9 @@ export class AuthService {
     }
 
     // Generate a simple token (in production, use JWT)
-    const token = Buffer.from(`${auth.userId}:${Date.now()}`).toString('base64');
+    const token = Buffer.from(`${auth.userId}:${Date.now()}`).toString(
+      'base64',
+    );
 
     return {
       token,
