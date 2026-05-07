@@ -5,6 +5,11 @@ import request from 'supertest';
 import { AppModule } from './../src/app.module';
 import { PrismaService } from './../src/prisma/prisma.service';
 
+interface GraphQLResponse<T = Record<string, unknown>> {
+  data?: T;
+  errors?: Array<{ message: string }>;
+}
+
 describe('AuthResolver (e2e)', () => {
   let app: INestApplication;
   let prismaService: PrismaService;
@@ -30,7 +35,7 @@ describe('AuthResolver (e2e)', () => {
 
   describe('/graphql (POST) - Register', () => {
     it('should register a new user', () => {
-      return request(app.getHttpServer())
+      return request(app.getHttpServer() as Parameters<typeof request>[0])
         .post('/graphql')
         .send({
           query: `
@@ -55,15 +60,21 @@ describe('AuthResolver (e2e)', () => {
           },
         })
         .expect(200)
-        .expect((res) => {
-          expect(res.body.data.register).toBeDefined();
-          expect(res.body.data.register.user.username).toBe('testuser');
-          expect(res.body.data.register.user.name).toBe('Test User');
+        .expect((res: request.Response) => {
+          const body = res.body as GraphQLResponse<{
+            register: {
+              token: string;
+              user: { username: string; name: string };
+            };
+          }>;
+          expect(body.data?.register).toBeDefined();
+          expect(body.data?.register.user.username).toBe('testuser');
+          expect(body.data?.register.user.name).toBe('Test User');
         });
     });
 
     it('should fail to register with existing username', () => {
-      return request(app.getHttpServer())
+      return request(app.getHttpServer() as Parameters<typeof request>[0])
         .post('/graphql')
         .send({
           query: `
@@ -87,18 +98,17 @@ describe('AuthResolver (e2e)', () => {
           },
         })
         .expect(200)
-        .expect((res) => {
-          expect(res.body.errors).toBeDefined();
-          expect(res.body.errors[0].message).toContain(
-            'Username already exists',
-          );
+        .expect((res: request.Response) => {
+          const body = res.body as GraphQLResponse<{ register: null }>;
+          expect(body.errors).toBeDefined();
+          expect(body.errors?.[0].message).toContain('Username already exists');
         });
     });
   });
 
   describe('/graphql (POST) - Login', () => {
     it('should login with valid credentials', () => {
-      return request(app.getHttpServer())
+      return request(app.getHttpServer() as Parameters<typeof request>[0])
         .post('/graphql')
         .send({
           query: `
@@ -121,15 +131,18 @@ describe('AuthResolver (e2e)', () => {
           },
         })
         .expect(200)
-        .expect((res) => {
-          expect(res.body.data.login).toBeDefined();
-          expect(res.body.data.login.token).toBeDefined();
-          expect(res.body.data.login.user.username).toBe('testuser');
+        .expect((res: request.Response) => {
+          const body = res.body as GraphQLResponse<{
+            login: { token: string; user: { username: string } };
+          }>;
+          expect(body.data?.login).toBeDefined();
+          expect(body.data?.login.token).toBeDefined();
+          expect(body.data?.login.user.username).toBe('testuser');
         });
     });
 
     it('should fail to login with invalid credentials', () => {
-      return request(app.getHttpServer())
+      return request(app.getHttpServer() as Parameters<typeof request>[0])
         .post('/graphql')
         .send({
           query: `
@@ -151,9 +164,10 @@ describe('AuthResolver (e2e)', () => {
           },
         })
         .expect(200)
-        .expect((res) => {
-          expect(res.body.errors).toBeDefined();
-          expect(res.body.errors[0].message).toContain('Invalid credentials');
+        .expect((res: request.Response) => {
+          const body = res.body as GraphQLResponse<{ login: null }>;
+          expect(body.errors).toBeDefined();
+          expect(body.errors?.[0].message).toContain('Invalid credentials');
         });
     });
   });

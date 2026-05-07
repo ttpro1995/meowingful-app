@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation } from '@apollo/client/react';
 import { useNavigate, Link } from 'react-router-dom';
 import { REGISTER } from '../graphql/queries';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 
 interface RegisterData {
   register: {

@@ -1,35 +1,20 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { ReactNode } from 'react';
+import { AuthContext } from './AuthContextDefinition';
+import type { User } from './AuthContextDefinition';
 
-interface User {
-  id: string;
-  username: string;
-  name: string;
-  bio?: string | null;
+function getInitialState(): { token: string | null; user: User | null } {
+  const storedToken = localStorage.getItem('token');
+  const storedUser = localStorage.getItem('user');
+  if (storedToken && storedUser) {
+    return { token: storedToken, user: JSON.parse(storedUser) as User };
+  }
+  return { token: null, user: null };
 }
-
-interface AuthContextType {
-  user: User | null;
-  token: string | null;
-  login: (token: string, user: User) => void;
-  logout: () => void;
-  updateUser: (user: Partial<User>) => void;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
-    }
-  }, []);
+  const [user, setUser] = useState<User | null>(() => getInitialState().user);
+  const [token, setToken] = useState<string | null>(() => getInitialState().token);
 
   const login = (newToken: string, newUser: User) => {
     setToken(newToken);
@@ -58,12 +43,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 }

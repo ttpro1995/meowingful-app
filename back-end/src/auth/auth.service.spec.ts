@@ -10,7 +10,6 @@ import * as bcrypt from 'bcryptjs';
 
 describe('AuthService', () => {
   let authService: AuthService;
-  let prismaService: PrismaService;
 
   const mockPrismaService = {
     user: {
@@ -36,7 +35,6 @@ describe('AuthService', () => {
     }).compile();
 
     authService = module.get<AuthService>(AuthService);
-    prismaService = module.get<PrismaService>(PrismaService);
   });
 
   afterEach(() => {
@@ -63,15 +61,26 @@ describe('AuthService', () => {
       mockPrismaService.user.create.mockResolvedValue(newUser);
       mockPrismaService.auth.create.mockResolvedValue({});
 
-      mockPrismaService.$transaction.mockImplementation(async (fn) => {
-        return fn(mockPrismaService);
-      });
+      mockPrismaService.$transaction.mockImplementation(
+        async (
+          fn: (arg: typeof mockPrismaService) => Promise<{
+            id: string;
+            username: string;
+            name: string;
+            bio: null;
+            createdAt: Date;
+            updatedAt: Date;
+          }>,
+        ) => {
+          return fn(mockPrismaService);
+        },
+      );
 
       const result = await authService.register(registerInput);
 
       expect(result.username).toBe(registerInput.username);
       expect(result.name).toBe(registerInput.name);
-      expect(prismaService.user.findUnique).toHaveBeenCalledWith({
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
         where: { username: registerInput.username },
       });
     });

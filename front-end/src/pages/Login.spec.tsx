@@ -1,9 +1,8 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
-import Login from '../pages/Login';
 import { AuthProvider } from '../context/AuthContext';
 import { MockedProvider } from '@apollo/client/testing/react';
 import { MemoryRouter } from 'react-router-dom';
+import { render, screen } from '@testing-library/react';
+import Login from '../pages/Login';
 
 describe('Login Page', () => {
   it('renders login form correctly', () => {

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react';
 import { useNavigate } from 'react-router-dom';
 import { GET_USER, UPDATE_USER, CHANGE_PASSWORD } from '../graphql/queries';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 
 interface User {
   id: string;
@@ -46,12 +46,14 @@ export default function Profile() {
   const [updateUser] = useMutation<UpdateUserMutation>(UPDATE_USER);
   const [changePassword] = useMutation<ChangePasswordMutation>(CHANGE_PASSWORD);
 
-  useEffect(() => {
+  // Initialize name/bio from data when editing starts (lazy init via function)
+  const initializeForm = () => {
     if (data?.getUser) {
       setName(data.getUser.name);
       setBio(data.getUser.bio || '');
     }
-  }, [data]);
+    setIsEditing(true);
+  };
 
   useEffect(() => {
     if (!token) {
@@ -198,12 +200,12 @@ export default function Profile() {
             <div className="info-row">
               <strong>Name:</strong> {data?.getUser?.name || name}
             </div>
-            <div className="info-row">
+<div className="info-row">
               <strong>Bio:</strong>{' '}
               {data?.getUser?.bio || bio || 'No bio set'}
             </div>
             <button
-              onClick={() => setIsEditing(true)}
+              onClick={initializeForm}
               className="btn-primary"
             >
               Edit Profile
