@@ -1,0 +1,228 @@
+name: PR Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [master]
+
+jobs:
+  backend-lint:
+    name: Backend Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: back-end/package-lock.json
+
+      - name: Install backend dependencies
+        run: |
+          cd back-end
+          npm ci
+
+      - name: Run backend lint (no warnings allowed)
+        run: |
+          cd back-end
+          npm run lint -- --max-warnings 0
+
+  frontend-lint:
+    name: Frontend Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: front-end/package-lock.json
+
+      - name: Install frontend dependencies
+        run: |
+          cd front-end
+          npm ci
+
+      - name: Run frontend lint (no warnings allowed)
+        run: |
+          cd front-end
+          npm run lint -- --max-warnings 0
+
+  backend-unit-tests:
+    name: Backend Unit Tests
+    runs-on: ubuntu-latest
+    needs: [backend-lint]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: back-end/package-lock.json
+
+      - name: Install backend dependencies
+        run: |
+          cd back-end
+          npm ci
+
+      - name: Run backend unit tests
+        run: |
+          cd back-end
+          npm run test
+
+  frontend-unit-tests:
+    name: Frontend Unit Tests
+    runs-on: ubuntu-latest
+    needs: [frontend-lint]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: front-end/package-lock.json
+
+      - name: Install frontend dependencies
+        run: |
+          cd front-end
+          npm ci
+
+      - name: Run frontend unit tests
+        run: |
+          cd front-end
+          npm run test:run
+
+  backend-coverage:
+    name: Backend Coverage Check
+    runs-on: ubuntu-latest
+    needs: [backend-unit-tests]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: back-end/package-lock.json
+
+      - name: Install backend dependencies
+        run: |
+          cd back-end
+          npm ci
+
+      - name: Run backend tests with coverage
+        run: |
+          cd back-end
+          npm run test:cov
+
+      - name: Check backend coverage threshold
+        run: |
+          cd back-end
+          # Extract coverage percentage from Jest output
+          COVERAGE=$(npx jest --coverage --silent | grep "All files" | grep -o '[0-9]\+\.[0-9]\+' | head -1)
+          echo "Coverage: $COVERAGE%"
+          if (( $(echo "$COVERAGE < 70" | bc -l) )); then
+            echo "❌ Coverage $COVERAGE% is below required 70%"
+            exit 1
+          else
+            echo "✅ Coverage $COVERAGE% meets the 70% requirement"
+          fi
+
+  frontend-coverage:
+    name: Frontend Coverage Check
+    runs-on: ubuntu-latest
+    needs: [frontend-unit-tests]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: front-end/package-lock.json
+
+      - name: Install frontend dependencies
+        run: |
+          cd front-end
+          npm ci
+
+      - name: Run frontend tests with coverage
+        run: |
+          cd front-end
+          npx vitest run --coverage
+
+      - name: Check frontend coverage threshold
+        run: |
+          cd front-end
+          # Extract coverage percentage from vitest coverage report
+          if [ -f coverage/coverage-summary.json ]; then
+            COVERAGE=$(node -e "const fs=require('fs'); const cov=JSON.parse(fs.readFileSync('coverage/coverage-summary.json')); console.log(cov.total.lines.pct);")
+            echo "Coverage: $COVERAGE%"
+            if (( $(echo "$COVERAGE < 70" | bc -l) )); then
+              echo "❌ Coverage $COVERAGE% is below required 70%"
+              exit 1
+            else
+              echo "✅ Coverage $COVERAGE% meets the 70% requirement"
+            fi
+          else
+            echo "❌ Coverage report not found"
+            exit 1
+          fi
+
+  backend-regression-tests:
+    name: Backend Regression Tests (E2E)
+    runs-on: ubuntu-latest
+    needs: [backend-unit-tests]
+    continue-on-error: true  # Don't fail PR if regression tests fail
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: back-end/package-lock.json
+
+      - name: Install backend dependencies
+        run: |
+          cd back-end
+          npm ci
+
+      - name: Run backend regression tests (E2E)
+        run: |
+          cd back-end
+          npm run test:e2e
+
+  # Summary job that all required checks must pass
+  pr-validation-complete:
+    name: PR Validation Complete
+    runs-on: ubuntu-latest
+    needs: [
+      backend-lint,
+      frontend-lint,
+      backend-unit-tests,
+      frontend-unit-tests,
+      backend-coverage,
+      frontend-coverage
+    ]
+    steps:
+      - name: All required checks passed
+        run: echo "✅ All required PR validation checks have passed"
