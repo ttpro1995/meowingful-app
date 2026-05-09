@@ -24,6 +24,7 @@ jobs:
         run: |
           cd back-end
           npm ci
+          npx prisma generate
 
       - name: Run backend lint (no warnings allowed)
         run: |
@@ -73,6 +74,7 @@ jobs:
         run: |
           cd back-end
           npm ci
+          npx prisma generate
 
       - name: Run backend unit tests
         run: |
@@ -123,6 +125,7 @@ jobs:
         run: |
           cd back-end
           npm ci
+          npx prisma generate
 
       - name: Run backend tests with coverage
         run: |
@@ -205,6 +208,7 @@ jobs:
         run: |
           cd back-end
           npm ci
+          npx prisma generate
 
       - name: Run backend regression tests (E2E)
         run: |
