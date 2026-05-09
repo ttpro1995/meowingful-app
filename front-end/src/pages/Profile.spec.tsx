@@ -68,7 +68,7 @@ describe('Profile Page', () => {
     // But since we are mocking the context user, it might show the user info from context first
     expect(await screen.findByRole('heading', { level: 1, name: /Profile/i })).toBeInTheDocument();
     expect(screen.getByText(/testuser/i)).toBeInTheDocument();
-    expect(screen.getByText(/Test User/i)).toBeInTheDocument();
-    expect(screen.getByText(/Test bio/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Test User/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Test bio/i)).toBeInTheDocument();
   });
 });
