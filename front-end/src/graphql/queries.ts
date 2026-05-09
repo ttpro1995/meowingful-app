@@ -45,6 +45,17 @@ export const GET_USER = gql`
   }
 `;
 
+export const GET_ME = gql`
+  query GetMe {
+    me {
+      id
+      username
+      name
+      bio
+    }
+  }
+`;
+
 export const UPDATE_USER = gql`
   mutation UpdateUser($userId: String!, $input: UpdateUserInput!) {
     updateUser(userId: $userId, input: $input) {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react';
 import { useNavigate } from 'react-router-dom';
-import { GET_USER, UPDATE_USER, CHANGE_PASSWORD } from '../graphql/queries';
+import { GET_USER, GET_ME, UPDATE_USER, CHANGE_PASSWORD } from '../graphql/queries';
 import { useAuth } from '../context/useAuth';
 
 interface User {
@@ -15,6 +15,10 @@ interface User {
 
 interface GetUserQuery {
   getUser: User;
+}
+
+interface GetMeQuery {
+  me: User | null;
 }
 
 interface UpdateUserMutation {
@@ -38,6 +42,13 @@ export default function Profile() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Fetch user info for OAuth login (when we have token but no user info)
+  const { data: meData } = useQuery<GetMeQuery>(GET_ME, {
+    skip: !!authUser, // Skip if we already have user info
+    fetchPolicy: 'network-only',
+  });
+
+  // Fetch user data if we have an auth user
   const { data, refetch } = useQuery<GetUserQuery>(GET_USER, {
     variables: { userId: authUser?.id },
     skip: !authUser?.id,
@@ -46,13 +57,20 @@ export default function Profile() {
   const [updateUser] = useMutation<UpdateUserMutation>(UPDATE_USER);
   const [changePassword] = useMutation<ChangePasswordMutation>(CHANGE_PASSWORD);
 
+  // Update authUser when me query returns data (OAuth login case)
+  useEffect(() => {
+    if (meData?.me && !authUser) {
+      updateAuthUser(meData.me);
+    }
+  }, [meData, authUser, updateAuthUser]);
+
   // Initialize name/bio from data when editing starts (lazy init via function)
   const initializeForm = () => {
-    if (data?.getUser) {
-      setName(data.getUser.name);
-      setBio(data.getUser.bio || '');
+    if (data?.getUser || meData?.me) {
+      setName((data?.getUser || meData?.me)?.name || '');
+      setBio((data?.getUser || meData?.me)?.bio || '');
+      setIsEditing(true);
     }
-    setIsEditing(true);
   };
 
   useEffect(() => {
@@ -198,11 +216,10 @@ export default function Profile() {
         ) : (
           <div className="profile-details">
             <div className="info-row">
-              <strong>Name:</strong> {data?.getUser?.name || name}
+              <strong>Name:</strong> {(data?.getUser || meData?.me)?.name || ''}
             </div>
-<div className="info-row">
-              <strong>Bio:</strong>{' '}
-              {data?.getUser?.bio || bio || 'No bio set'}
+            <div className="info-row">
+              <strong>Bio:</strong> {(data?.getUser || meData?.me)?.bio || 'No bio set'}
             </div>
             <button
               onClick={initializeForm}

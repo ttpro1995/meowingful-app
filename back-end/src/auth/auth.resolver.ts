@@ -1,4 +1,4 @@
-import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, Context } from '@nestjs/graphql';
 import { AuthService } from './auth.service';
 import {
   User,
@@ -8,6 +8,7 @@ import {
   UpdateUserInput,
   ChangePasswordInput,
 } from './auth.types';
+import * as jwt from 'jsonwebtoken';
 
 @Resolver(() => User)
 export class AuthResolver {
@@ -29,6 +30,25 @@ export class AuthResolver {
   @Query(() => User)
   async getUser(@Args('userId') userId: string) {
     return this.authService.getUser(userId);
+  }
+
+  @Query(() => User, { nullable: true })
+  async me(@Context() context: any) {
+    const req = context.req;
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      return null;
+    }
+
+    try {
+      const token = authHeader.replace('Bearer ', '');
+      const secret = process.env.JWT_SECRET || 'default-secret-change-in-production';
+      const payload = jwt.verify(token, secret) as { sub: string };
+      return this.authService.getUser(payload.sub);
+    } catch {
+      return null;
+    }
   }
 
   @Mutation(() => User)

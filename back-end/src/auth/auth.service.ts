@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
+import * as jwt from 'jsonwebtoken';
+import { v4 as uuidv4 } from 'uuid';
 import {
   RegisterInput,
   LoginInput,
@@ -177,5 +179,17 @@ export class AuthService {
     });
 
     return true;
+  }
+
+  async generateTokenPair(userId: string): Promise<{ accessToken: string; refreshToken: string; jti: string }> {
+    const jti = uuidv4();
+    const secret = process.env.JWT_SECRET || 'default-secret-change-in-production';
+
+    const payload = { sub: userId, jti };
+
+    const accessToken = jwt.sign(payload, secret, { expiresIn: '15m' });
+    const refreshToken = jwt.sign(payload, secret, { expiresIn: '7d' });
+
+    return { accessToken, refreshToken, jti };
   }
 }
