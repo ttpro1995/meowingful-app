@@ -1,0 +1,68 @@
+name: Frontend E2E Tests
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [master]
+
+jobs:
+  frontend-e2e:
+    name: Frontend E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/test_db?schema=public
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: front-end/package-lock.json
+
+      - name: Install frontend dependencies
+        run: |
+          cd front-end
+          npm ci
+
+      - name: Install Playwright browsers
+        run: |
+          cd front-end
+          npx playwright install --with-deps
+
+      - name: Build frontend
+        run: |
+          cd front-end
+          npm run build
+
+      - name: Setup backend for E2E
+        run: |
+          cd back-end
+          npm ci
+          npx prisma generate
+          npx prisma migrate deploy
+
+      - name: Start backend server
+        run: |
+          cd back-end
+          npm run start:prod &
+          sleep 10
+
+      - name: Run Frontend E2E tests
+        run: |
+          cd front-end
+          npm run test:e2e

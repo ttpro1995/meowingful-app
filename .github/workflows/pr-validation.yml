@@ -188,11 +188,43 @@ jobs:
             exit 1
           fi
 
+  docker-build:
+    name: Docker Build Verification
+    runs-on: ubuntu-latest
+    needs: [backend-lint, frontend-lint]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend Docker image
+        run: |
+          docker build -t meowingful-backend:pr-${{ github.event.pull_request.number }} ./back-end
+
+      - name: Build frontend Docker image
+        run: |
+          docker build -t meowingful-frontend:pr-${{ github.event.pull_request.number }} ./front-end
+
   backend-regression-tests:
     name: Backend Regression Tests (E2E)
     runs-on: ubuntu-latest
     needs: [backend-unit-tests]
-    continue-on-error: true  # Don't fail PR if regression tests fail
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/test_db?schema=public
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -210,6 +242,11 @@ jobs:
           npm ci
           npx prisma generate
 
+      - name: Run Prisma migrations
+        run: |
+          cd back-end
+          npx prisma migrate deploy
+
       - name: Run backend regression tests (E2E)
         run: |
           cd back-end
@@ -225,7 +262,9 @@ jobs:
       backend-unit-tests,
       frontend-unit-tests,
       backend-coverage,
-      frontend-coverage
+      frontend-coverage,
+      docker-build,
+      backend-regression-tests
     ]
     steps:
       - name: All required checks passed
