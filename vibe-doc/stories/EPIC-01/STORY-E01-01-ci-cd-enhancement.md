@@ -4,7 +4,7 @@
 - **Story ID**: STORY-E01-01
 - **Epic**: EPIC-01 — Foundation & Infrastructure Enhancement
 - **Priority**: High
-- **Status**: Todo
+- **Status**: Done
 - **Created**: 2026-05-09
 - **Related**: vibe-doc/epic-plan.md, .github/workflows/pr-validation.yml
 
@@ -22,24 +22,24 @@ PR validation already covers lint, unit tests, and coverage. What is missing:
 ## Requirements
 
 ### Functional Requirements
-- [ ] CI builds Docker images for backend and frontend on every PR merge to master
-- [ ] Backend integration tests run against a real PostgreSQL container in CI (not mocked)
-- [ ] Frontend E2E tests (Playwright) run in CI against a built frontend + running backend
-- [ ] CD pipeline deploys to staging automatically after merge to master
-- [ ] CD pipeline deploys to production manually (workflow_dispatch or tag-triggered)
-- [ ] Backend E2E job is required (not `continue-on-error`) once a stable test DB is wired in
+- [x] CI builds Docker images for backend and frontend on every PR merge to master
+- [x] Backend integration tests run against a real PostgreSQL container in CI (not mocked)
+- [x] Frontend E2E tests (Playwright) run in CI against a built frontend + running backend
+- [x] CD pipeline deploys to staging automatically after merge to master
+- [x] CD pipeline deploys to production manually (workflow_dispatch or tag-triggered)
+- [x] Backend E2E job is required (not `continue-on-error`) once a stable test DB is wired in
 
 ### Non-Functional Requirements
-- [ ] Total CI time stays under 10 minutes for the PR validation pipeline
-- [ ] Failed deployment automatically notifies the team (GitHub Actions summary + optional Slack)
-- [ ] All secrets managed via GitHub Actions secrets — no credentials in code
+- [x] Total CI time stays under 10 minutes for the PR validation pipeline
+- [x] Failed deployment automatically notifies the team (GitHub Actions summary + optional Slack)
+- [x] All secrets managed via GitHub Actions secrets — no credentials in code
 
 ## Acceptance Criteria
-- [ ] Merging to master triggers a Docker build; a broken Dockerfile fails the pipeline
-- [ ] Integration tests exercise real DB queries (Prisma migrations applied against postgres service container)
-- [ ] Playwright E2E tests cover login and profile update happy path
-- [ ] Staging environment reflects master within 5 minutes of merge
-- [ ] Production deployment requires explicit manual trigger
+- [x] Merging to master triggers a Docker build; a broken Dockerfile fails the pipeline
+- [x] Integration tests exercise real DB queries (Prisma migrations applied against postgres service container)
+- [x] Playwright E2E tests cover login and profile update happy path
+- [x] Staging environment reflects master within 5 minutes of merge
+- [x] Production deployment requires explicit manual trigger
 
 ## Technical Specifications
 

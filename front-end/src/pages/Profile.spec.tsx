@@ -4,7 +4,7 @@ import Profile from '../pages/Profile';
 import { AuthProvider } from '../context/AuthContext';
 import { MockedProvider } from '@apollo/client/testing/react';
 import { MemoryRouter } from 'react-router-dom';
-import { GET_USER, UPDATE_USER, CHANGE_PASSWORD } from '../graphql/queries';
+import { GET_USER } from '../graphql/queries';
 
 const getUserMock = {
   request: {
@@ -26,49 +26,6 @@ const getUserMock = {
     },
   },
 };
-
-const updateMocks = [getUserMock, {
-  request: {
-    query: UPDATE_USER,
-    variables: {
-      userId: '123',
-      input: {
-        name: 'Updated Name',
-        bio: 'Updated bio',
-      },
-    },
-  },
-  result: {
-    data: {
-      updateUser: {
-        id: '123',
-        username: 'testuser',
-        name: 'Updated Name',
-        bio: 'Updated bio',
-        createdAt: '2026-03-29T00:00:00Z',
-        updatedAt: '2026-03-29T00:00:00Z',
-      },
-    },
-  },
-}];
-
-const changePasswordMocks = [getUserMock, {
-  request: {
-    query: CHANGE_PASSWORD,
-    variables: {
-      userId: '123',
-      input: {
-        currentPassword: 'oldpassword',
-        newPassword: 'newpassword123',
-      },
-    },
-  },
-  result: {
-    data: {
-      changePassword: true,
-    },
-  },
-}];
 
 describe('Profile Page', () => {
   let localStorageMock: {

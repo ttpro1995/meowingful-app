@@ -11,6 +11,8 @@ describe('AuthResolver', () => {
     register: jest.fn(),
     login: jest.fn(),
     getUser: jest.fn(),
+    getMe: jest.fn(),
+    getUsers: jest.fn(),
     updateUser: jest.fn(),
     changePassword: jest.fn(),
   };
@@ -108,6 +110,28 @@ describe('AuthResolver', () => {
     });
   });
 
+  describe('getMe', () => {
+    it('should return user by id', async () => {
+      const userId = 'user-uuid';
+
+      const mockUser: User = {
+        id: userId,
+        username: 'testuser',
+        name: 'Test User',
+        bio: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockAuthService.getMe.mockResolvedValue(mockUser);
+
+      const result = await authResolver.getMe(userId);
+
+      expect(mockAuthService.getMe).toHaveBeenCalledWith(userId);
+      expect(result.user).toEqual(mockUser);
+    });
+  });
+
   describe('updateUser', () => {
     it('should update user and return updated user', async () => {
       const userId = 'user-uuid';
@@ -148,6 +172,53 @@ describe('AuthResolver', () => {
 
       expect(mockAuthService.changePassword).toHaveBeenCalledWith(userId, changePasswordInput);
       expect(result).toBe(true);
+    });
+  });
+
+  describe('users', () => {
+    it('should return paginated users', async () => {
+      const mockResult = {
+        users: [],
+        pageInfo: {
+          startCursor: undefined,
+          endCursor: undefined,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+        totalCount: 0,
+      };
+
+      mockAuthService.getUsers.mockResolvedValue(mockResult);
+
+      const result = await authResolver.users({});
+
+      expect(mockAuthService.getUsers).toHaveBeenCalledWith({});
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should pass query args to service', async () => {
+      const query = {
+        first: 10,
+        after: 'cursor123',
+        includeDeleted: false,
+      };
+
+      const mockResult = {
+        users: [] as User[],
+        pageInfo: {
+          startCursor: undefined,
+          endCursor: undefined,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+        totalCount: 0,
+      };
+
+      mockAuthService.getUsers.mockResolvedValue(mockResult);
+
+      const result = await authResolver.users(query);
+
+      expect(mockAuthService.getUsers).toHaveBeenCalledWith(query);
     });
   });
 });

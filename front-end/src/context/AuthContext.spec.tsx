@@ -1,10 +1,8 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { AuthProvider } from '../context/AuthContext';
-import { AuthContext } from '../context/AuthContextDefinition';
 import { useAuth } from '../context/useAuth';
 import { MemoryRouter } from 'react-router-dom';
-import React from 'react';
 
 // Test component that uses useAuth hook
 function TestComponent() {

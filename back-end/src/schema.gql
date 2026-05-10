@@ -22,15 +22,29 @@ input LoginInput {
   username: String!
 }
 
+type MePayload {
+  user: User!
+}
+
 type Mutation {
   changePassword(input: ChangePasswordInput!, userId: String!): Boolean!
   login(input: LoginInput!): AuthPayload!
   register(input: RegisterInput!): AuthPayload!
   updateUser(input: UpdateUserInput!, userId: String!): User!
+  updateUserProfile(input: UpdateUserProfileInput!, userId: String!): User!
+}
+
+type PageInfo {
+  endCursor: String
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
 }
 
 type Query {
+  getMe(userId: String!): MePayload!
   getUser(userId: String!): User!
+  users(query: UsersQueryInput!): UsersPayload!
 }
 
 input RegisterInput {
@@ -44,11 +58,33 @@ input UpdateUserInput {
   name: String
 }
 
+input UpdateUserProfileInput {
+  bio: String
+  email: String
+  name: String
+}
+
 type User {
   bio: String
   createdAt: DateTime!
+  deletedAt: DateTime
+  email: String
   id: String!
   name: String!
   updatedAt: DateTime!
   username: String!
+}
+
+type UsersPayload {
+  pageInfo: PageInfo!
+  totalCount: Int!
+  users: [User!]!
+}
+
+input UsersQueryInput {
+  after: String
+  before: String
+  first: Int
+  includeDeleted: Boolean
+  last: Int
 }

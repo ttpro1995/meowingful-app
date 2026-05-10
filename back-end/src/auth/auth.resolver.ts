@@ -3,15 +3,25 @@ import { AuthService } from './auth.service';
 import {
   User,
   AuthPayload,
+  MePayload,
+  UsersPayload,
+  UsersQueryInput,
   RegisterInput,
   LoginInput,
   UpdateUserInput,
+  UpdateUserProfileInput,
   ChangePasswordInput,
 } from './auth.types';
 
 @Resolver(() => User)
 export class AuthResolver {
   constructor(private authService: AuthService) {}
+
+  @Query(() => MePayload)
+  async getMe(@Args('userId') userId: string) {
+    const user = await this.authService.getMe(userId);
+    return { user };
+  }
 
   @Mutation(() => AuthPayload)
   async register(@Args('input') input: RegisterInput) {
@@ -39,11 +49,24 @@ export class AuthResolver {
     return this.authService.updateUser(userId, input);
   }
 
+  @Mutation(() => User)
+  async updateUserProfile(
+    @Args('userId') userId: string,
+    @Args('input') input: UpdateUserProfileInput,
+  ) {
+    return this.authService.updateUserProfile(userId, input);
+  }
+
   @Mutation(() => Boolean)
   async changePassword(
     @Args('userId') userId: string,
     @Args('input') input: ChangePasswordInput,
   ) {
     return this.authService.changePassword(userId, input);
+  }
+
+  @Query(() => UsersPayload)
+  async users(@Args('query') query: UsersQueryInput) {
+    return this.authService.getUsers(query);
   }
 }
