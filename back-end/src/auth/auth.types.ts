@@ -56,8 +56,7 @@ export class RegisterInput {
   @Field(() => String)
   @IsNotEmpty({ message: 'Username is required' })
   @IsAlphanumeric('en-US', {
-    message:
-      'Username must contain only alphanumeric characters and spaces',
+    message: 'Username must contain only alphanumeric characters and spaces',
   })
   username: string;
 

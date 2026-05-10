@@ -176,7 +176,9 @@ describe('AuthResolver (e2e)', () => {
     it('should return the current user', async () => {
       // Register a user first
       const username = `getmeuser${Date.now()}`;
-      const registerRes = await request(app.getHttpServer() as Parameters<typeof request>[0])
+      const registerRes = await request(
+        app.getHttpServer() as Parameters<typeof request>[0],
+      )
         .post('/graphql')
         .send({
           query: `
@@ -198,7 +200,10 @@ describe('AuthResolver (e2e)', () => {
         })
         .expect(200);
 
-      const userId = registerRes.body.data?.register?.user?.id;
+      const body = registerRes.body as GraphQLResponse<{
+        register: { user: { id: string } };
+      }>;
+      const userId = body.data?.register?.user?.id;
       expect(userId).toBeDefined();
 
       // Now call getMe with the created user ID

@@ -7,12 +7,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
-import {
-  UsersQueryInput,
-  UsersPayload,
-  User,
-  PageInfo,
-} from './auth.types';
+import { UsersQueryInput, User } from './auth.types';
 
 describe('AuthService', () => {
   let authService: AuthService;
@@ -362,37 +357,37 @@ describe('AuthService', () => {
         deletedAt: new Date('2026-05-01T00:00:00Z'),
       };
 
-      mockPrismaService.user.findMany.mockResolvedValue([...mockUsers, deletedUser]);
+      mockPrismaService.user.findMany.mockResolvedValue([
+        ...mockUsers,
+        deletedUser,
+      ]);
       mockPrismaService.user.count.mockResolvedValue(3);
 
       const query: UsersQueryInput = { first: 10, includeDeleted: true };
       const result = await authService.getUsers(query);
 
       expect(result.users.length).toBe(3);
-      expect(result.users.some(u => u.deletedAt)).toBe(true);
+      expect(result.users.some((u) => u.deletedAt)).toBe(true);
     });
 
     it('should filter out deleted users by default', async () => {
-      const deletedUser: User = {
-        ...mockUsers[0],
-        id: 'deleted-user',
-        username: 'deleted',
-        name: 'Deleted User',
-        deletedAt: new Date('2026-05-01T00:00:00Z'),
-      };
-
       mockPrismaService.user.findMany.mockResolvedValue(mockUsers);
       mockPrismaService.user.count.mockResolvedValue(2);
 
       const query: UsersQueryInput = { first: 10 };
       const result = await authService.getUsers(query);
 
-      expect(result.users.every(u => !u.deletedAt)).toBe(true);
-      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
+      expect(result.users.every((u) => !u.deletedAt)).toBe(true);
+
+      // Check findMany was called with correct where clause
+      const findManyCalls = mockPrismaService.user.findMany.mock.calls;
+      expect(findManyCalls.length).toBeGreaterThan(0);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+      const firstCallArgs = findManyCalls[0][0];
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      expect(firstCallArgs.where).toEqual(
         expect.objectContaining({
-          where: expect.objectContaining({
-            deletedAt: null,
-          }),
+          deletedAt: null,
         }),
       );
     });
@@ -418,7 +413,9 @@ describe('AuthService', () => {
 
     it('should support backward pagination with before cursor', async () => {
       mockPrismaService.user.count.mockResolvedValue(2);
-      mockPrismaService.user.findMany.mockResolvedValue([...mockUsers].reverse());
+      mockPrismaService.user.findMany.mockResolvedValue(
+        [...mockUsers].reverse(),
+      );
 
       const beforeCursor = Buffer.from(
         new Date('2026-01-02T00:00:00Z').toISOString(),

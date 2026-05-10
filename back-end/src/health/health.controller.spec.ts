@@ -1,5 +1,4 @@
 import { HealthController } from './health.controller';
-import { HealthModule } from './health.module';
 
 describe('HealthController', () => {
   describe('getHealth', () => {

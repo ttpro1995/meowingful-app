@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import {
   RegisterInput,
@@ -15,6 +16,7 @@ import {
   UsersQueryInput,
   UsersPayload,
   PageInfo,
+  User,
 } from './auth.types';
 
 @Injectable()
@@ -157,7 +159,7 @@ export class AuthService {
   async updateUserProfile(userId: string, input: UpdateUserProfileInput) {
     const { name, bio, email } = input;
 
-    const data: any = { name, bio };
+    const data: UpdateUserProfileInput = { name, bio };
     if (email !== undefined) {
       data.email = email;
     }
@@ -215,25 +217,17 @@ export class AuthService {
 
   // New method for paginated users query
   async getUsers(query: UsersQueryInput): Promise<UsersPayload> {
-    const {
-      first,
-      last,
-      after,
-      before,
-      includeDeleted = false,
-    } = query;
+    const { first, last, after, before, includeDeleted = false } = query;
 
     // Determine pagination direction
     const isForward = first !== undefined || (!last && !before);
     const take = first ?? last ?? 20;
 
     // Build where clause for soft-delete filtering
-    const whereClause = includeDeleted
-      ? {}
-      : { deletedAt: null };
+    const whereClause = includeDeleted ? {} : { deletedAt: null };
 
     // Build cursor conditions
-    const cursorConditions: any[] = [];
+    const cursorConditions: Prisma.UserWhereInput[] = [];
     if (after) {
       const decodedAfter = Buffer.from(after, 'base64').toString('utf-8');
       if (isForward) {
@@ -251,7 +245,7 @@ export class AuthService {
       }
     }
 
-    const cursorWhere =
+    const cursorWhere: Prisma.UserWhereInput =
       cursorConditions.length > 0
         ? { AND: [whereClause, ...cursorConditions] }
         : whereClause;
@@ -263,15 +257,13 @@ export class AuthService {
 
     // Fetch users with pagination
     const users = await this.prisma.user.findMany({
-      where: cursorWhere as any,
+      where: cursorWhere,
       orderBy: { createdAt: isForward ? 'asc' : 'desc' },
       take: isForward ? take : -take,
     });
 
     // If querying backwards, reverse to maintain natural order
-    const orderedUsers = isForward
-      ? users
-      : [...users].reverse();
+    const orderedUsers = isForward ? users : [...users].reverse();
 
     // Build page info
     const pageInfo: PageInfo = {
@@ -305,7 +297,9 @@ export class AuthService {
           const prevUser = await this.prisma.user.findFirst({
             where: {
               ...whereClause,
-              createdAt: { lt: new Date(Buffer.from(after, 'base64').toString('utf-8')) },
+              createdAt: {
+                lt: new Date(Buffer.from(after, 'base64').toString('utf-8')),
+              },
             },
             orderBy: { createdAt: 'desc' },
           });
@@ -326,7 +320,9 @@ export class AuthService {
           const nextUser = await this.prisma.user.findFirst({
             where: {
               ...whereClause,
-              createdAt: { gt: new Date(Buffer.from(before, 'base64').toString('utf-8')) },
+              createdAt: {
+                gt: new Date(Buffer.from(before, 'base64').toString('utf-8')),
+              },
             },
             orderBy: { createdAt: 'asc' },
           });
@@ -337,7 +333,7 @@ export class AuthService {
 
     return {
       users: orderedUsers.map(
-        (user): any => ({
+        (user): User => ({
           id: user.id,
           username: user.username,
           name: user.name,

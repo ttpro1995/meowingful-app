@@ -12,16 +12,21 @@ async function bootstrap() {
     credentials: true,
   });
 
-   app.setGlobalPrefix('api/v1');
-   app.use(loggerMiddleware);
+  app.setGlobalPrefix('api/v1');
+  app.use(loggerMiddleware);
 
   await app.listen(process.env.PORT ?? 3000);
 
   // Graceful shutdown
   for (const signal of ['SIGINT', 'SIGTERM']) {
-    process.on(signal, async () => {
-      await app.close();
-      process.exit(0);
+    process.on(signal, () => {
+      void app
+        .close()
+        .then(() => process.exit(0))
+        .catch((err) => {
+          console.error('Error during graceful shutdown', err);
+          process.exit(1);
+        });
     });
   }
 }

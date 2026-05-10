@@ -5,7 +5,6 @@ import { User } from '@prisma/client';
 
 describe('AuthResolver', () => {
   let authResolver: AuthResolver;
-  let authService: AuthService;
 
   const mockAuthService = {
     register: jest.fn(),
@@ -26,7 +25,6 @@ describe('AuthResolver', () => {
     }).compile();
 
     authResolver = module.get<AuthResolver>(AuthResolver);
-    authService = module.get<AuthService>(AuthService);
   });
 
   afterEach(() => {
@@ -153,7 +151,10 @@ describe('AuthResolver', () => {
 
       const result = await authResolver.updateUser(userId, updateInput);
 
-      expect(mockAuthService.updateUser).toHaveBeenCalledWith(userId, updateInput);
+      expect(mockAuthService.updateUser).toHaveBeenCalledWith(
+        userId,
+        updateInput,
+      );
       expect(result).toEqual(mockUser);
     });
   });
@@ -168,9 +169,15 @@ describe('AuthResolver', () => {
 
       mockAuthService.changePassword.mockResolvedValue(true);
 
-      const result = await authResolver.changePassword(userId, changePasswordInput);
+      const result = await authResolver.changePassword(
+        userId,
+        changePasswordInput,
+      );
 
-      expect(mockAuthService.changePassword).toHaveBeenCalledWith(userId, changePasswordInput);
+      expect(mockAuthService.changePassword).toHaveBeenCalledWith(
+        userId,
+        changePasswordInput,
+      );
       expect(result).toBe(true);
     });
   });
@@ -216,7 +223,7 @@ describe('AuthResolver', () => {
 
       mockAuthService.getUsers.mockResolvedValue(mockResult);
 
-      const result = await authResolver.users(query);
+      await authResolver.users(query);
 
       expect(mockAuthService.getUsers).toHaveBeenCalledWith(query);
     });
