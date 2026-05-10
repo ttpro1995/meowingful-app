@@ -232,6 +232,120 @@ describe('AuthService', () => {
       expect(result.name).toBe(updateInput.name);
       expect(result.bio).toBe(updateInput.bio);
     });
+
+    it('should update user with only name', async () => {
+      const userId = 'user-uuid';
+      const updateInput = {
+        name: 'Only Name Update',
+      };
+
+      mockPrismaService.user.update.mockResolvedValue({
+        id: userId,
+        username: 'testuser',
+        name: updateInput.name,
+        bio: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const result = await authService.updateUser(userId, updateInput);
+
+      expect(result.name).toBe(updateInput.name);
+    });
+
+    it('should update user with only bio', async () => {
+      const userId = 'user-uuid';
+      const updateInput = {
+        bio: 'Only bio update',
+      };
+
+      mockPrismaService.user.update.mockResolvedValue({
+        id: userId,
+        username: 'testuser',
+        name: 'Test User',
+        bio: updateInput.bio,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const result = await authService.updateUser(userId, updateInput);
+
+      expect(result.bio).toBe(updateInput.bio);
+    });
+  });
+
+  describe('updateUserProfile', () => {
+    it('should update user profile with email', async () => {
+      const userId = 'user-uuid';
+      const updateInput = {
+        name: 'Updated Name',
+        bio: 'Updated bio',
+        email: 'test@example.com',
+      };
+
+      mockPrismaService.user.update.mockResolvedValue({
+        id: userId,
+        username: 'testuser',
+        name: updateInput.name,
+        bio: updateInput.bio,
+        email: updateInput.email,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const result = await authService.updateUserProfile(userId, updateInput);
+
+      expect(result.name).toBe(updateInput.name);
+      expect(result.bio).toBe(updateInput.bio);
+      expect(result.email).toBe(updateInput.email);
+    });
+
+    it('should update user profile without email', async () => {
+      const userId = 'user-uuid';
+      const updateInput = {
+        name: 'Updated Name',
+        bio: 'Updated bio',
+        email: undefined,
+      };
+
+      mockPrismaService.user.update.mockResolvedValue({
+        id: userId,
+        username: 'testuser',
+        name: updateInput.name,
+        bio: updateInput.bio,
+        email: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const result = await authService.updateUserProfile(userId, updateInput);
+
+      expect(result.name).toBe(updateInput.name);
+      expect(result.email).toBeUndefined();
+    });
+
+    it('should handle email update only', async () => {
+      const userId = 'user-uuid';
+      const updateInput = {
+        name: undefined,
+        bio: undefined,
+        email: 'onlyemail@example.com',
+      };
+
+      mockPrismaService.user.update.mockResolvedValue({
+        id: userId,
+        username: 'testuser',
+        name: 'Existing Name',
+        bio: 'Existing Bio',
+        email: 'onlyemail@example.com',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const result = await authService.updateUserProfile(userId, updateInput);
+
+      expect(result.email).toBe('onlyemail@example.com');
+    });
   });
 
   describe('changePassword', () => {
@@ -279,6 +393,20 @@ describe('AuthService', () => {
       await expect(
         authService.changePassword(userId, changePasswordInput),
       ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should throw BadRequestException if auth record not found', async () => {
+      const userId = 'user-uuid';
+      const changePasswordInput = {
+        currentPassword: 'oldpassword',
+        newPassword: 'newpassword',
+      };
+
+      mockPrismaService.auth.findFirst.mockResolvedValue(null);
+
+      await expect(
+        authService.changePassword(userId, changePasswordInput),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -481,6 +609,76 @@ describe('AuthService', () => {
       const result = await authService.getUsers(query);
 
       expect(result.users[0].deletedAt).toBeInstanceOf(Date);
+    });
+
+    it('should set hasPreviousPage correctly when after cursor is provided', async () => {
+      mockPrismaService.user.count.mockResolvedValue(3);
+      mockPrismaService.user.findFirst.mockResolvedValueOnce({
+        id: 'user-uuid-3',
+        username: 'user3',
+        name: 'User Three',
+        bio: null,
+        deletedAt: null,
+        createdAt: new Date('2026-01-03T00:00:00Z'),
+        updatedAt: new Date('2026-01-03T00:00:00Z'),
+      });
+      mockPrismaService.user.findFirst.mockResolvedValueOnce({
+        id: 'user-uuid-0',
+        username: 'user0',
+        name: 'User Zero',
+        bio: null,
+        deletedAt: null,
+        createdAt: new Date('2025-12-31T00:00:00Z'),
+        updatedAt: new Date('2025-12-31T00:00:00Z'),
+      });
+      mockPrismaService.user.findMany.mockResolvedValue(mockUsers);
+
+      const afterCursor = Buffer.from(
+        new Date('2026-01-01T00:00:00Z').toISOString(),
+      ).toString('base64');
+
+      const query: UsersQueryInput = { first: 2, after: afterCursor };
+      const result = await authService.getUsers(query);
+
+      expect(result.pageInfo.hasPreviousPage).toBe(true);
+    });
+
+    it('should set hasNextPage correctly in backward pagination', async () => {
+      mockPrismaService.user.count.mockResolvedValue(3);
+      mockPrismaService.user.findFirst.mockResolvedValueOnce({
+        id: 'user-uuid-1',
+        username: 'user1',
+        name: 'User One',
+        bio: null,
+        deletedAt: null,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+      });
+      mockPrismaService.user.findMany.mockResolvedValue([
+        mockUsers[0],
+        mockUsers[1],
+      ]);
+
+      const beforeCursor = Buffer.from(
+        new Date('2026-01-03T00:00:00Z').toISOString(),
+      ).toString('base64');
+
+      const query: UsersQueryInput = { last: 2, before: beforeCursor };
+      const result = await authService.getUsers(query);
+
+      expect(result.pageInfo.hasNextPage).toBe(true);
+    });
+
+    it('should handle last parameter without before cursor', async () => {
+      mockPrismaService.user.count.mockResolvedValue(2);
+      mockPrismaService.user.findMany.mockResolvedValue([...mockUsers].reverse());
+
+      const query: UsersQueryInput = { last: 10 };
+      const result = await authService.getUsers(query);
+
+      expect(result.users.length).toBe(2);
+      expect(result.pageInfo.startCursor).toBeDefined();
+      expect(result.pageInfo.endCursor).toBeDefined();
     });
   });
 });

@@ -13,6 +13,7 @@ describe('AuthResolver', () => {
     getMe: jest.fn(),
     getUsers: jest.fn(),
     updateUser: jest.fn(),
+    updateUserProfile: jest.fn(),
     changePassword: jest.fn(),
   };
 
@@ -128,6 +129,26 @@ describe('AuthResolver', () => {
       expect(mockAuthService.getMe).toHaveBeenCalledWith(userId);
       expect(result.user).toEqual(mockUser);
     });
+
+    it('should handle getMe with different user id', async () => {
+      const userId = 'another-user-uuid';
+
+      const mockUser: User = {
+        id: userId,
+        username: 'anotheruser',
+        name: 'Another User',
+        bio: 'Another bio',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockAuthService.getMe.mockResolvedValue(mockUser);
+
+      const result = await authResolver.getMe(userId);
+
+      expect(mockAuthService.getMe).toHaveBeenCalledWith(userId);
+      expect(result.user.id).toBe(userId);
+    });
   });
 
   describe('updateUser', () => {
@@ -156,6 +177,90 @@ describe('AuthResolver', () => {
         updateInput,
       );
       expect(result).toEqual(mockUser);
+    });
+
+    it('should update user with partial input', async () => {
+      const userId = 'user-uuid';
+      const updateInput = {
+        name: 'Only Name Update',
+      };
+
+      const mockUser: User = {
+        id: userId,
+        username: 'testuser',
+        name: updateInput.name,
+        bio: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockAuthService.updateUser.mockResolvedValue(mockUser);
+
+      const result = await authResolver.updateUser(userId, updateInput);
+
+      expect(mockAuthService.updateUser).toHaveBeenCalledWith(
+        userId,
+        updateInput,
+      );
+      expect(result.name).toBe(updateInput.name);
+    });
+  });
+
+  describe('updateUserProfile', () => {
+    it('should update user profile with email', async () => {
+      const userId = 'user-uuid';
+      const updateInput = {
+        name: 'Updated Name',
+        bio: 'Updated bio',
+        email: 'test@example.com',
+      };
+
+      const mockUser: User = {
+        id: userId,
+        username: 'testuser',
+        name: updateInput.name,
+        bio: updateInput.bio,
+        email: updateInput.email,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockAuthService.updateUserProfile.mockResolvedValue(mockUser);
+
+      const result = await authResolver.updateUserProfile(userId, updateInput);
+
+      expect(mockAuthService.updateUserProfile).toHaveBeenCalledWith(
+        userId,
+        updateInput,
+      );
+      expect(result).toEqual(mockUser);
+    });
+
+    it('should update user profile without email', async () => {
+      const userId = 'user-uuid';
+      const updateInput = {
+        name: 'Updated Name',
+        bio: 'Updated bio',
+      };
+
+      const mockUser: User = {
+        id: userId,
+        username: 'testuser',
+        name: updateInput.name,
+        bio: updateInput.bio,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockAuthService.updateUserProfile.mockResolvedValue(mockUser);
+
+      const result = await authResolver.updateUserProfile(userId, updateInput);
+
+      expect(mockAuthService.updateUserProfile).toHaveBeenCalledWith(
+        userId,
+        updateInput,
+      );
+      expect(result.name).toBe(updateInput.name);
     });
   });
 
