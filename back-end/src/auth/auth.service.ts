@@ -5,12 +5,18 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import {
   RegisterInput,
   LoginInput,
   UpdateUserInput,
   ChangePasswordInput,
+  UpdateUserProfileInput,
+  UsersQueryInput,
+  UsersPayload,
+  PageInfo,
+  User,
 } from './auth.types';
 
 @Injectable()
@@ -60,7 +66,7 @@ export class AuthService {
       id: user.id,
       username: user.username,
       name: user.name,
-      bio: user.bio,
+      bio: user.bio ?? undefined,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
@@ -97,7 +103,7 @@ export class AuthService {
         id: auth.user.id,
         username: auth.user.username,
         name: auth.user.name,
-        bio: auth.user.bio,
+        bio: auth.user.bio ?? undefined,
         createdAt: auth.user.createdAt,
         updatedAt: auth.user.updatedAt,
       },
@@ -117,10 +123,15 @@ export class AuthService {
       id: user.id,
       username: user.username,
       name: user.name,
-      bio: user.bio,
+      bio: user.bio ?? undefined,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
+  }
+
+  // New method for getMe query
+  async getMe(userId: string) {
+    return this.getUser(userId);
   }
 
   async updateUser(userId: string, input: UpdateUserInput) {
@@ -138,7 +149,32 @@ export class AuthService {
       id: user.id,
       username: user.username,
       name: user.name,
-      bio: user.bio,
+      bio: user.bio ?? undefined,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+  }
+
+  // New method for updating profile including email
+  async updateUserProfile(userId: string, input: UpdateUserProfileInput) {
+    const { name, bio, email } = input;
+
+    const data: UpdateUserProfileInput = { name, bio };
+    if (email !== undefined) {
+      data.email = email;
+    }
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data,
+    });
+
+    return {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      bio: user.bio ?? undefined,
+      email: user.email ?? undefined,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
@@ -177,5 +213,139 @@ export class AuthService {
     });
 
     return true;
+  }
+
+  // New method for paginated users query
+  async getUsers(query: UsersQueryInput): Promise<UsersPayload> {
+    const { first, last, after, before, includeDeleted = false } = query;
+
+    // Determine pagination direction
+    const isForward = first !== undefined || (!last && !before);
+    const take = first ?? last ?? 20;
+
+    // Build where clause for soft-delete filtering
+    const whereClause = includeDeleted ? {} : { deletedAt: null };
+
+    // Build cursor conditions
+    const cursorConditions: Prisma.UserWhereInput[] = [];
+    if (after) {
+      const decodedAfter = Buffer.from(after, 'base64').toString('utf-8');
+      if (isForward) {
+        cursorConditions.push({ createdAt: { gt: new Date(decodedAfter) } });
+      } else {
+        cursorConditions.push({ createdAt: { lt: new Date(decodedAfter) } });
+      }
+    }
+    if (before) {
+      const decodedBefore = Buffer.from(before, 'base64').toString('utf-8');
+      if (isForward) {
+        cursorConditions.push({ createdAt: { lt: new Date(decodedBefore) } });
+      } else {
+        cursorConditions.push({ createdAt: { gt: new Date(decodedBefore) } });
+      }
+    }
+
+    const cursorWhere: Prisma.UserWhereInput =
+      cursorConditions.length > 0
+        ? { AND: [whereClause, ...cursorConditions] }
+        : whereClause;
+
+    // Get total count (non-deleted)
+    const totalCount = await this.prisma.user.count({
+      where: { deletedAt: null },
+    });
+
+    // Fetch users with pagination
+    const users = await this.prisma.user.findMany({
+      where: cursorWhere,
+      orderBy: { createdAt: isForward ? 'asc' : 'desc' },
+      take: isForward ? take : -take,
+    });
+
+    // If querying backwards, reverse to maintain natural order
+    const orderedUsers = isForward ? users : [...users].reverse();
+
+    // Build page info
+    const pageInfo: PageInfo = {
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: undefined,
+      endCursor: undefined,
+    };
+
+    if (orderedUsers.length > 0) {
+      pageInfo.startCursor = Buffer.from(
+        orderedUsers[0].createdAt.toISOString(),
+      ).toString('base64');
+      pageInfo.endCursor = Buffer.from(
+        orderedUsers[orderedUsers.length - 1].createdAt.toISOString(),
+      ).toString('base64');
+
+      // Check for next page
+      if (isForward) {
+        const nextUser = await this.prisma.user.findFirst({
+          where: {
+            ...whereClause,
+            createdAt: { gt: orderedUsers[orderedUsers.length - 1].createdAt },
+          },
+          orderBy: { createdAt: 'asc' },
+        });
+        pageInfo.hasNextPage = !!nextUser;
+
+        // Check for previous page
+        if (after) {
+          const prevUser = await this.prisma.user.findFirst({
+            where: {
+              ...whereClause,
+              createdAt: {
+                lt: new Date(Buffer.from(after, 'base64').toString('utf-8')),
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+          pageInfo.hasPreviousPage = !!prevUser;
+        }
+      } else {
+        // Backward pagination
+        const prevUser = await this.prisma.user.findFirst({
+          where: {
+            ...whereClause,
+            createdAt: { lt: orderedUsers[0].createdAt },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+        pageInfo.hasPreviousPage = !!prevUser;
+
+        if (before) {
+          const nextUser = await this.prisma.user.findFirst({
+            where: {
+              ...whereClause,
+              createdAt: {
+                gt: new Date(Buffer.from(before, 'base64').toString('utf-8')),
+              },
+            },
+            orderBy: { createdAt: 'asc' },
+          });
+          pageInfo.hasNextPage = !!nextUser;
+        }
+      }
+    }
+
+    return {
+      users: orderedUsers.map(
+        (user): User => ({
+          id: user.id,
+          username: user.username,
+          name: user.name,
+          bio: user.bio ?? undefined,
+          email: user.email ?? undefined,
+          deletedAt: user.deletedAt ?? undefined,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+        }),
+      ),
+      pageInfo,
+      totalCount,
+    };
   }
 }

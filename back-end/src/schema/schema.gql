@@ -1,0 +1,23 @@
+# ------------------------------------------------------
+# ROOT GRAPHQL SCHEMA
+# ------------------------------------------------------
+
+scalar DateTime
+
+type Query {
+  getUser(userId: String!): User!
+  health: HealthResponse!
+}
+
+type Mutation {
+  changePassword(input: ChangePasswordInput!, userId: String!): Boolean!
+  login(input: LoginInput!): AuthPayload!
+  register(input: RegisterInput!): AuthPayload!
+  updateUser(input: UpdateUserInput!, userId: String!): User!
+}
+
+type HealthResponse {
+  status: String!
+  timestamp: DateTime!
+  uptime: Float!
+}

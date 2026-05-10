@@ -1,0 +1,67 @@
+# ------------------------------------------------------
+# AUTH DOMAIN SCHEMA
+# ------------------------------------------------------
+
+type AuthPayload {
+  token: String!
+  user: User!
+}
+
+type MePayload {
+  user: User!
+}
+
+type User {
+  bio: String
+  createdAt: DateTime!
+  id: String!
+  name: String!
+  updatedAt: DateTime!
+  username: String!
+}
+
+input ChangePasswordInput {
+  currentPassword: String!
+  newPassword: String!
+}
+
+input LoginInput {
+  password: String!
+  username: String!
+}
+
+input RegisterInput {
+  name: String!
+  password: String!
+  username: String!
+}
+
+input UpdateUserInput {
+  bio: String
+  name: String
+}
+
+type PageInfo {
+  startCursor: String
+  endCursor: String
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+}
+
+type UsersPayload {
+  users: [User!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input UsersQueryInput {
+  first: Int
+  last: Int
+  after: String
+  before: String
+  includeDeleted: Boolean
+}
+
+extend type Query {
+  users(query: UsersQueryInput): UsersPayload!
+}

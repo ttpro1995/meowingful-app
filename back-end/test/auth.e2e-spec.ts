@@ -171,4 +171,67 @@ describe('AuthResolver (e2e)', () => {
         });
     });
   });
+
+  describe('/graphql (POST) - GetMe', () => {
+    it('should return the current user', async () => {
+      // Register a user first
+      const username = `getmeuser${Date.now()}`;
+      const registerRes = await request(
+        app.getHttpServer() as Parameters<typeof request>[0],
+      )
+        .post('/graphql')
+        .send({
+          query: `
+            mutation Register($input: RegisterInput!) {
+              register(input: $input) {
+                user {
+                  id
+                }
+              }
+            }
+          `,
+          variables: {
+            input: {
+              username,
+              password: 'password123',
+              name: 'GetMe Test User',
+            },
+          },
+        })
+        .expect(200);
+
+      const body = registerRes.body as GraphQLResponse<{
+        register: { user: { id: string } };
+      }>;
+      const userId = body.data?.register?.user?.id;
+      expect(userId).toBeDefined();
+
+      // Now call getMe with the created user ID
+      return request(app.getHttpServer() as Parameters<typeof request>[0])
+        .post('/graphql')
+        .send({
+          query: `
+            query GetMe($userId: String!) {
+              getMe(userId: $userId) {
+                user {
+                  id
+                  username
+                  name
+                  bio
+                }
+              }
+            }
+          `,
+          variables: { userId },
+        })
+        .expect(200)
+        .expect((res: request.Response) => {
+          const body = res.body as GraphQLResponse<{
+            getMe: { user: { id: string; username: string; name: string } };
+          }>;
+          expect(body.data?.getMe).toBeDefined();
+          expect(body.data?.getMe.user.id).toBe(userId);
+        });
+    });
+  });
 });
