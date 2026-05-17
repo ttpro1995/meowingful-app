@@ -12,11 +12,13 @@ describe('Logger Middleware', () => {
       originalUrl: '/test',
     };
     mockResponse = {
-      on: jest.fn().mockImplementation((event: string, callback: () => void) => {
-        if (event === 'finish') {
-          callback();
-        }
-      }),
+      on: jest
+        .fn()
+        .mockImplementation((event: string, callback: () => void) => {
+          if (event === 'finish') {
+            callback();
+          }
+        }),
       statusCode: 200,
     };
     mockNext = jest.fn();
@@ -46,7 +48,10 @@ describe('Logger Middleware', () => {
       mockNext,
     );
 
-    expect(mockResponse.on).toHaveBeenCalledWith('finish', expect.any(Function));
+    expect(mockResponse.on).toHaveBeenCalledWith(
+      'finish',
+      expect.any(Function),
+    );
     expect(console.log).toHaveBeenCalled();
   });
 

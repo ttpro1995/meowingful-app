@@ -159,7 +159,7 @@ describe('Auth Types Validation', () => {
 
     it('should fail validation when first is not an integer', async () => {
       const input = new UsersQueryInput();
-      input.first = 10.5 as unknown as number;
+      input.first = 10.5;
 
       const errors = await validate(input);
       expect(errors.length).toBeGreaterThan(0);
