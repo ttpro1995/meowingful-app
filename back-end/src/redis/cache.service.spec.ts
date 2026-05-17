@@ -1,11 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CacheService } from './cache.service';
 import { REDIS_CLIENT } from './redis.constants';
-import { Redis } from 'ioredis';
 
 describe('CacheService', () => {
   let service: CacheService;
-  let mockRedis: jest.Mocked<Redis>;
+  let mockRedis: {
+    set: jest.Mock;
+    get: jest.Mock;
+    del: jest.Mock;
+    exists: jest.Mock;
+    ping: jest.Mock;
+  };
 
   beforeEach(async () => {
     mockRedis = {
@@ -14,7 +19,7 @@ describe('CacheService', () => {
       del: jest.fn(),
       exists: jest.fn(),
       ping: jest.fn(),
-    } as any;
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -35,7 +40,12 @@ describe('CacheService', () => {
 
       await service.set('test-key', 'test-value', 60);
 
-      expect(mockRedis.set).toHaveBeenCalledWith('test-key', 'test-value', 'EX', 60);
+      expect(mockRedis.set).toHaveBeenCalledWith(
+        'test-key',
+        'test-value',
+        'EX',
+        60,
+      );
     });
 
     it('should throw error when redis fails', async () => {
