@@ -86,14 +86,14 @@ describe('Auth Types Validation', () => {
   });
 
   describe('UpdateUserInput', () => {
-    it('should be defined', async () => {
+    it('should be defined', () => {
       const input = new UpdateUserInput();
       expect(input).toBeDefined();
     });
   });
 
   describe('UpdateUserProfileInput', () => {
-    it('should be defined', async () => {
+    it('should be defined', () => {
       const input = new UpdateUserProfileInput();
       expect(input).toBeDefined();
     });
