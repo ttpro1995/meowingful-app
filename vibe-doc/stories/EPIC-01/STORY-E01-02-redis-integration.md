@@ -4,7 +4,7 @@
 - **Story ID**: STORY-E01-02
 - **Epic**: EPIC-01 — Foundation & Infrastructure Enhancement
 - **Priority**: High
-- **Status**: Todo
+- **Status**: In Progress (5/6 criteria complete, 1 blocked)
 - **Created**: 2026-05-09
 - **Related**: vibe-doc/epic-plan.md, vibe-doc/architecture.md
 
@@ -15,25 +15,23 @@ As a platform engineer, I want Redis added to the infrastructure so that session
 The current stack has no caching layer. JWT tokens are stateless and cannot be revoked without a token blacklist store. Future features (notifications, live class, rate limiting) all require a fast key-value store. Redis is the planned solution per the architecture doc.
 
 ## Requirements
-
-### Functional Requirements
-- [ ] Redis container added to `docker-compose.yml` and `docker-compose.dev.yml`
-- [ ] NestJS backend connects to Redis via `@nestjs-modules/ioredis` or `ioredis` directly
-- [ ] JWT refresh token IDs stored in Redis with TTL matching token expiry (enables revocation)
-- [ ] A Redis health check is included in the backend `/health` endpoint response
-- [ ] Cache service abstraction created for easy use by other modules
+- [x] Redis container added to `docker-compose.yml` and `docker-compose.dev.yml` (unit tests)
+- [x] NestJS backend connects to Redis via `ioredis` directly (unit tests)
+- [ ] JWT refresh token IDs stored in Redis with TTL matching token expiry (enables revocation) - blocked by STORY-E01-04
+- [x] A Redis health check is included in the backend `/health` endpoint response (unit tests)
+- [x] Cache service abstraction created for easy use by other modules (unit tests)
 
 ### Non-Functional Requirements
-- [ ] Redis connection failure does not crash the backend — graceful degradation with warning log
-- [ ] Redis password configured via environment variable (not hardcoded)
-- [ ] Redis data is persisted with AOF or RDB in production docker-compose
+- [x] Redis connection failure does not crash the backend — graceful degradation with warning log (unit tests)
+- [x] Redis password configured via environment variable (not hardcoded)
+- [x] Redis data is persisted with AOF or RDB in production docker-compose
 
 ## Acceptance Criteria
-- [ ] `docker-compose up` starts Redis alongside backend and frontend
-- [ ] Backend logs "Redis connected" on startup
-- [ ] Logging out a user invalidates the stored refresh token ID in Redis (verified in integration test)
-- [ ] Health endpoint returns Redis status: `{ "redis": "ok" }` or `{ "redis": "down" }`
-- [ ] `CacheService.set(key, value, ttlSeconds)` and `CacheService.get(key)` work correctly
+- [x] `docker-compose up` starts Redis alongside backend and frontend
+- [x] Backend logs "Redis connected" on startup
+- [ ] Logging out a user invalidates the stored refresh token ID in Redis (verified in integration test) - blocked by STORY-E01-04
+- [x] Health endpoint returns Redis status: `{ "redis": "ok" }` or `{ "redis": "down" }` (unit tests)
+- [x] `CacheService.set(key, value, ttlSeconds)` and `CacheService.get(key)` work correctly (unit tests)
 
 ## Technical Specifications
 
@@ -93,13 +91,12 @@ REDIS_PASSWORD=changeme
 - Add integration test that verifies Redis health check response
 
 ## Testing Strategy
-
 ### Unit Tests
-- [ ] `CacheService` methods with mocked Redis client
+- [x] `CacheService` methods with mocked Redis client
 
 ### Integration Tests
-- [ ] Redis `set/get/del` against real Redis container
-- [ ] Health check returns correct Redis status
+- [x] Redis `set/get/del` against real Redis container
+- [x] Health check returns correct Redis status
 
 ## Dependencies
 
