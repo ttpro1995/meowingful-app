@@ -15,24 +15,8 @@
 ### Step 3: Tests
 - [x] Added unit tests for `CacheService` methods with mocked Redis client
 - [x] Added unit tests for `HealthController` with `redis` field in response
+- [x] Added integration tests for Redis e2e
 
-### Step 4: Integration Tests
-- [x] Created `redis.e2e-spec.ts` with Redis `set/get/del` tests
-- [x] Added integration test that verifies Redis health check response
+## Status: Complete (2/3 criteria, 1 blocked by STORY-E01-04)
 
-## Files Created
-- `back-end/src/redis/redis.module.ts` - Global Redis module with connection factory
-- `back-end/src/redis/redis.constants.ts` - Redis client token constant
-- `back-end/src/redis/cache.service.ts` - Cache service with set/get/del/exists methods
-- `back-end/src/redis/cache.service.spec.ts` - Unit tests for CacheService
-- `back-end/test/redis.e2e-spec.ts` - Integration tests for Redis
-
-## Files Modified
-- `docker-compose.yml` - Added Redis service with persistence (AOF)
-- `docker-compose.dev.yml` - Added Redis service for development
-- `back-end/.env` - Added REDIS_HOST, REDIS_PORT, REDIS_PASSWORD
-- `.env.example` - Created template for environment variables
-- `back-end/src/app.module.ts` - Imported RedisModule
-- `back-end/src/health/health.controller.ts` - Added Redis status to health check
-- `back-end/src/health/health.module.ts` - Imported RedisModule
-- `back-end/src/health/health.controller.spec.ts` - Updated tests for Redis status
+The Redis integration is complete. The "Logging out a user invalidates the stored refresh token ID" acceptance criteria is blocked by STORY-E01-04 (refresh tokens stored in Redis), which will use the CacheService implemented here.

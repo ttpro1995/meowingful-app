@@ -671,7 +671,9 @@ describe('AuthService', () => {
 
     it('should handle last parameter without before cursor', async () => {
       mockPrismaService.user.count.mockResolvedValue(2);
-      mockPrismaService.user.findMany.mockResolvedValue([...mockUsers].reverse());
+      mockPrismaService.user.findMany.mockResolvedValue(
+        [...mockUsers].reverse(),
+      );
 
       const query: UsersQueryInput = { last: 10 };
       const result = await authService.getUsers(query);

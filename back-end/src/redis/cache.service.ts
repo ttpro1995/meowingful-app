@@ -11,8 +11,9 @@ export class CacheService {
   async set(key: string, value: string, ttlSeconds: number): Promise<void> {
     try {
       await this.redis.set(key, value, 'EX', ttlSeconds);
-    } catch (error) {
-      this.logger.error(`Failed to set cache key ${key}: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to set cache key ${key}: ${message}`);
       throw error;
     }
   }
@@ -20,8 +21,9 @@ export class CacheService {
   async get(key: string): Promise<string | null> {
     try {
       return await this.redis.get(key);
-    } catch (error) {
-      this.logger.error(`Failed to get cache key ${key}: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to get cache key ${key}: ${message}`);
       throw error;
     }
   }
@@ -29,8 +31,9 @@ export class CacheService {
   async del(key: string): Promise<void> {
     try {
       await this.redis.del(key);
-    } catch (error) {
-      this.logger.error(`Failed to delete cache key ${key}: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to delete cache key ${key}: ${message}`);
       throw error;
     }
   }
@@ -39,8 +42,9 @@ export class CacheService {
     try {
       const result = await this.redis.exists(key);
       return result === 1;
-    } catch (error) {
-      this.logger.error(`Failed to check existence of key ${key}: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to check existence of key ${key}: ${message}`);
       throw error;
     }
   }
@@ -48,8 +52,9 @@ export class CacheService {
   async ping(): Promise<string> {
     try {
       return await this.redis.ping();
-    } catch (error) {
-      this.logger.error(`Redis ping failed: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Redis ping failed: ${message}`);
       return 'down';
     }
   }
