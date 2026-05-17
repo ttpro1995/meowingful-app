@@ -9,6 +9,7 @@ A full-stack web application with user authentication and profile management.
 - **GraphQL** - Query language for APIs
 - **Prisma** - Next-generation ORM
 - **PostgreSQL** - Relational database
+- **Redis** - Caching and session storage
 - **bcryptjs** - Password hashing
 
 ### Frontend
@@ -37,9 +38,10 @@ A full-stack web application with user authentication and profile management.
    ```
 
 2. **Access the application:**
-   - Frontend: http://localhost:8500
-   - Backend GraphQL Playground: http://localhost:3500/graphql
-   - PostgreSQL: localhost:5432
+    - Frontend: http://localhost:8500
+    - Backend GraphQL Playground: http://localhost:3500/graphql
+    - PostgreSQL: localhost:5432
+    - Redis: localhost:6379 (with password: redis-password)
 
 3. **Stop services:**
    ```bash
@@ -251,9 +253,16 @@ meowingful-app/
 │   │   │   ├── auth.service.ts
 │   │   │   ├── auth.service.spec.ts
 │   │   │   └── auth.types.ts
+│   │   ├── redis/          # Redis module
+│   │   │   ├── redis.module.ts
+│   │   │   ├── cache.service.ts
+│   │   │   └── cache.service.spec.ts
 │   │   ├── prisma/         # Prisma service
 │   │   │   ├── prisma.module.ts
 │   │   │   └── prisma.service.ts
+│   │   ├── health/         # Health check module
+│   │   │   ├── health.controller.ts
+│   │   │   └── health.controller.spec.ts
 │   │   ├── app.module.ts
 │   │   ├── app.controller.ts
 │   │   ├── app.service.ts
@@ -261,7 +270,9 @@ meowingful-app/
 │   ├── prisma/
 │   │   └── schema.prisma
 │   ├── test/
-│   │   └── auth.e2e-spec.ts
+│   │   ├── auth.e2e-spec.ts
+│   │   ├── redis.e2e-spec.ts
+│   │   └── app.e2e-spec.ts
 │   ├── Dockerfile
 │   ├── Dockerfile.dev
 │   └── package.json
@@ -300,6 +311,9 @@ meowingful-app/
 
 ### Backend
 - `DATABASE_URL` - PostgreSQL connection string
+- `REDIS_HOST` - Redis host (default: redis)
+- `REDIS_PORT` - Redis port (default: 6379)
+- `REDIS_PASSWORD` - Redis password (default: redis-password)
 - `PORT` - Backend server port (default: 3000)
 
 ### Frontend

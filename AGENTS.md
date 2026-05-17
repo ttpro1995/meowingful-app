@@ -29,6 +29,7 @@ docker-compose up --build
 # Access points:
 # Frontend: http://localhost:8500  
 # GraphQL Playground: http://localhost:3500/graphql
+# Redis (with password): localhost:6379 (default password: redis-password)
 ```
 
 **Local Development:**
@@ -42,7 +43,7 @@ cd front-end && npm run dev
 
 ## Architecture & Stack
 
-- **Backend:** NestJS + GraphQL + Prisma + PostgreSQL
+- **Backend:** NestJS + GraphQL + Prisma + PostgreSQL + Redis
 - **Frontend:** React + TypeScript + Apollo Client + Vite
 - **DevOps:** Docker + Docker Compose
 
@@ -126,6 +127,7 @@ npx prisma migrate deploy  # Apply migrations (non-interactive)
 
 **Required:**
 - Backend: `DATABASE_URL` (PostgreSQL connection)
+- Backend: `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` (Redis connection)
 - Frontend: `VITE_GRAPHQL_ENDPOINT` (GraphQL API URL)
 
 See [README.md](README.md) for complete environment setup details.
