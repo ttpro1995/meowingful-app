@@ -15,10 +15,18 @@ import { REDIS_CLIENT } from './redis.constants';
         const port = configService.get<number>('REDIS_PORT', 6379);
         const password = configService.get<string>('REDIS_PASSWORD', '');
 
+        const redisOptions: { host: string; port: number; password?: string } =
+          {
+            host,
+            port,
+          };
+
+        if (password) {
+          redisOptions.password = password;
+        }
+
         const client = new Redis({
-          host,
-          port,
-          password,
+          ...redisOptions,
           retryStrategy: (times) => {
             if (times > 10) {
               return null;

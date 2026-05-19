@@ -15,7 +15,6 @@ interface HealthResponse {
 
 describe('Redis Integration (e2e)', () => {
   let app: INestApplication<App>;
-  let cacheService: CacheService;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -23,7 +22,6 @@ describe('Redis Integration (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    cacheService = moduleFixture.get<CacheService>(CacheService);
     await app.init();
   });
 
@@ -43,41 +41,53 @@ describe('Redis Integration (e2e)', () => {
       expect(['ok', 'down']).toContain(body.redis);
     });
   });
+});
 
-  describe('CacheService', () => {
-    const testKey = 'test-cache-key';
-    const testValue = 'test-value';
+describe('CacheService (e2e)', () => {
+  const testKey = 'test-cache-key';
+  const testValue = 'test-value';
 
-    afterEach(async () => {
-      await cacheService.del(testKey);
-    });
+  it('should set and get a value', async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    const cacheService = moduleFixture.get<CacheService>(CacheService);
+    await cacheService.set(testKey, testValue, 60);
+    const result = await cacheService.get(testKey);
+    expect(result).toBe(testValue);
+    await moduleFixture.close();
+  });
 
-    it('should set and get a value', async () => {
-      await cacheService.set(testKey, testValue, 60);
-      const result = await cacheService.get(testKey);
+  it('should check if key exists', async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    const cacheService = moduleFixture.get<CacheService>(CacheService);
+    await cacheService.set(testKey, testValue, 60);
+    const exists = await cacheService.exists(testKey);
+    expect(exists).toBe(true);
+    await moduleFixture.close();
+  });
 
-      expect(result).toBe(testValue);
-    });
+  it('should delete a key', async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    const cacheService = moduleFixture.get<CacheService>(CacheService);
+    await cacheService.set(testKey, testValue, 60);
+    await cacheService.del(testKey);
+    const value = await cacheService.get(testKey);
+    expect(value).toBeNull();
+    await moduleFixture.close();
+  });
 
-    it('should check if key exists', async () => {
-      await cacheService.set(testKey, testValue, 60);
-      const exists = await cacheService.exists(testKey);
-
-      expect(exists).toBe(true);
-    });
-
-    it('should delete a key', async () => {
-      await cacheService.set(testKey, testValue, 60);
-      await cacheService.del(testKey);
-      const value = await cacheService.get(testKey);
-
-      expect(value).toBeNull();
-    });
-
-    it('should return false for non-existing key', async () => {
-      const exists = await cacheService.exists('non-existent-key');
-
-      expect(exists).toBe(false);
-    });
+  it('should return false for non-existing key', async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    const cacheService = moduleFixture.get<CacheService>(CacheService);
+    const exists = await cacheService.exists('non-existent-key');
+    expect(exists).toBe(false);
+    await moduleFixture.close();
   });
 });

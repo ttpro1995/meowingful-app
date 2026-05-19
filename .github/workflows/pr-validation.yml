@@ -229,14 +229,13 @@ jobs:
         ports:
           - 6379:6379
         options: >-
-          --health-cmd "redis-cli -a redis-password ping" --health-interval 5s --health-timeout 5s
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s
           --health-retries 5
-        command: ["redis-server", "--requirepass", "redis-password"]
     env:
       DATABASE_URL: postgresql://test:test@localhost:5432/test_db?schema=public
       REDIS_HOST: localhost
       REDIS_PORT: 6379
-      REDIS_PASSWORD: redis-password
+      REDIS_PASSWORD: ''
       JWT_SECRET: test-jwt-secret-for-e2e-tests
     steps:
       - name: Checkout code
