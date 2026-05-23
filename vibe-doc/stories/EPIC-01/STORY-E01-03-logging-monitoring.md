@@ -4,7 +4,7 @@
 - **Story ID**: STORY-E01-03
 - **Epic**: EPIC-01 — Foundation & Infrastructure Enhancement
 - **Priority**: Medium
-- **Status**: Todo
+- **Status**: In Progress
 - **Created**: 2026-05-09
 - **Related**: vibe-doc/epic-plan.md, vibe-doc/architecture.md
 
@@ -17,22 +17,22 @@ The current backend has no structured logging — NestJS default console output 
 ## Requirements
 
 ### Functional Requirements
-- [ ] Backend emits structured JSON logs (timestamp, level, context, message, traceId)
-- [ ] Every HTTP/GraphQL request is logged: method, path/operation, status, duration
-- [ ] A `/health` REST endpoint returns application health: DB, Redis, uptime
-- [ ] Prometheus metrics endpoint `/metrics` exposes: request count, response time histogram, error rate
-- [ ] Grafana dashboard (Docker Compose) shows: request rate, error rate, p95 latency, DB connections
+- [x] Backend emits structured JSON logs (timestamp, level, context, message, traceId)
+- [x] Every HTTP/GraphQL request is logged: method, path/operation, status, duration
+- [x] A `/health` REST endpoint returns application health: DB, Redis, uptime
+- [x] Prometheus metrics endpoint `/metrics` exposes: request count, response time histogram, error rate
+- [x] Grafana dashboard (Docker Compose) shows: request rate, error rate, p95 latency, DB connections
 - [ ] Error events (unhandled exceptions, DB failures) trigger an alert (log-level ERROR minimum)
 
 ### Non-Functional Requirements
-- [ ] Logging does not log sensitive data (passwords, tokens) — enforced by log sanitizer
-- [ ] Structured log format is consistent across all modules
-- [ ] `/health` and `/metrics` endpoints are excluded from auth guards
+- [x] Logging does not log sensitive data (passwords, tokens) — enforced by log sanitizer
+- [x] Structured log format is consistent across all modules
+- [x] `/health` and `/metrics` endpoints are excluded from auth guards
 
 ## Acceptance Criteria
-- [ ] `docker-compose up` starts Prometheus and Grafana alongside the app
+- [x] `docker-compose up` starts Prometheus and Grafana alongside the app
 - [ ] Making a GraphQL request produces a JSON log line with operation name and duration
-- [ ] `/health` returns `{ "status": "ok", "db": "ok", "redis": "ok", "uptime": 123 }`
+- [x] `/health` returns `{ "status": "ok", "db": "ok", "redis": "ok", "uptime": 123 }`
 - [ ] Grafana dashboard shows request rate graph with real data after 5 requests
 - [ ] An intentional DB failure causes a log line at ERROR level with context
 

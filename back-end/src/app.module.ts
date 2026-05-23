@@ -10,10 +10,13 @@ import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
 import { RedisModule } from './redis/redis.module';
+import { LoggerModule } from './logger/logger.module';
+import { MetricsModule } from './metrics/metrics.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    LoggerModule,
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
@@ -27,6 +30,7 @@ import { RedisModule } from './redis/redis.module';
     RedisModule,
     AuthModule,
     HealthModule,
+    MetricsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,10 +1,13 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { loggerMiddleware } from './middleware/logger.middleware';
+import { Logger } from 'nestjs-pino';
 import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+  });
+  app.useLogger(app.get(Logger));
 
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8500';
 
@@ -14,7 +17,6 @@ async function bootstrap() {
   });
 
   app.setGlobalPrefix('api/v1');
-  app.use(loggerMiddleware);
   app.use(cookieParser());
 
   await app.listen(process.env.PORT ?? 3000);
