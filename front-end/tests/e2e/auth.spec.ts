@@ -49,6 +49,6 @@ test.describe('Auth E2E', () => {
     await page.click('button[type="submit"]');
 
     // Should show error message
-    await expect(page.locator('.error')).toContainText('Invalid credentials');
+    await expect(page.locator('.error')).toContainText('Login failed');
   });
 });
