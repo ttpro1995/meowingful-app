@@ -4,7 +4,7 @@ import Profile from '../pages/Profile';
 import { AuthProvider } from '../context/AuthContext';
 import { MockedProvider } from '@apollo/client/testing/react';
 import { MemoryRouter } from 'react-router-dom';
-import { GET_USER } from '../graphql/queries';
+import { GET_USER, LOGOUT } from '../graphql/queries';
 
 const getUserMock = {
   request: {
@@ -23,6 +23,18 @@ const getUserMock = {
         createdAt: '2026-03-29T00:00:00Z',
         updatedAt: '2026-03-29T00:00:00Z',
       },
+    },
+  },
+};
+
+const logoutMock = {
+  request: {
+    query: LOGOUT,
+    variables: {},
+  },
+  result: {
+    data: {
+      logout: true,
     },
   },
 };
@@ -168,7 +180,7 @@ describe('Profile Page', () => {
 
   it('should logout', async () => {
     render(
-      <MockedProvider mocks={[getUserMock]}>
+      <MockedProvider mocks={[getUserMock, logoutMock]}>
         <MemoryRouter>
           <AuthProvider>
             <Profile />
@@ -180,8 +192,10 @@ describe('Profile Page', () => {
     const logoutButton = await screen.findByRole('button', { name: /Logout/i });
     fireEvent.click(logoutButton);
 
-    expect(localStorageMock.removeItem).toHaveBeenCalledWith('token');
-    expect(localStorageMock.removeItem).toHaveBeenCalledWith('user');
+    await waitFor(() => {
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith('token');
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith('user');
+    });
   });
 
   it('should show member since date', async () => {

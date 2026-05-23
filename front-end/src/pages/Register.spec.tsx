@@ -71,7 +71,7 @@ describe('Register Page', () => {
         result: {
           data: {
             register: {
-              token: 'new-token',
+              accessToken: 'new-token',
               user: {
                 id: '123',
                 username: 'newuser',

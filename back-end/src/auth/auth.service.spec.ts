@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { UsersQueryInput, User } from './auth.types';
+import { CacheService } from '../redis/cache.service';
 
 describe('AuthService', () => {
   let authService: AuthService;
@@ -31,11 +32,18 @@ describe('AuthService', () => {
     $transaction: jest.fn(),
   };
 
+  const mockCacheService = {
+    set: jest.fn(),
+    get: jest.fn(),
+    del: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: CacheService, useValue: mockCacheService },
       ],
     }).compile();
 
@@ -135,8 +143,10 @@ describe('AuthService', () => {
 
       const result = await authService.login(loginInput);
 
-      expect(result.token).toBeDefined();
+      expect(result.accessToken).toBeDefined();
+      expect(result.refreshToken).toBeDefined();
       expect(result.user.username).toBe(loginInput.username);
+      expect(mockCacheService.set).toHaveBeenCalled();
     });
 
     it('should throw UnauthorizedException if user not found', async () => {
@@ -179,6 +189,127 @@ describe('AuthService', () => {
       await expect(authService.login(loginInput)).rejects.toThrow(
         UnauthorizedException,
       );
+    });
+  });
+
+  describe('refreshSession', () => {
+    it('should return a new token pair for a valid refresh token', async () => {
+      const loginInput = {
+        username: 'testuser',
+        password: 'password123',
+      };
+
+      const hashedPassword = await bcrypt.hash(loginInput.password, 10);
+
+      mockPrismaService.auth.findUnique.mockResolvedValue({
+        id: 'auth-uuid',
+        userId: 'user-uuid',
+        username: loginInput.username,
+        passwordHash: hashedPassword,
+        salt: 'salt',
+        user: {
+          id: 'user-uuid',
+          username: loginInput.username,
+          name: 'Test User',
+          bio: null,
+          email: null,
+          deletedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        username: loginInput.username,
+        name: 'Test User',
+        bio: null,
+        email: null,
+        deletedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      mockCacheService.get.mockResolvedValue('user-uuid');
+
+      const session = await authService.login(loginInput);
+      const refreshedSession = await authService.refreshSession(
+        session.refreshToken,
+      );
+
+      expect(refreshedSession.accessToken).toBeDefined();
+      expect(refreshedSession.refreshToken).toBeDefined();
+      expect(mockCacheService.get).toHaveBeenCalled();
+      expect(mockCacheService.del).toHaveBeenCalled();
+    });
+
+    it('should throw UnauthorizedException for revoked refresh token', async () => {
+      const loginInput = {
+        username: 'testuser',
+        password: 'password123',
+      };
+
+      const hashedPassword = await bcrypt.hash(loginInput.password, 10);
+
+      mockPrismaService.auth.findUnique.mockResolvedValue({
+        id: 'auth-uuid',
+        userId: 'user-uuid',
+        username: loginInput.username,
+        passwordHash: hashedPassword,
+        salt: 'salt',
+        user: {
+          id: 'user-uuid',
+          username: loginInput.username,
+          name: 'Test User',
+          bio: null,
+          email: null,
+          deletedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+
+      const session = await authService.login(loginInput);
+      mockCacheService.get.mockResolvedValue(null);
+
+      await expect(
+        authService.refreshSession(session.refreshToken),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('logout', () => {
+    it('should delete refresh token key using jti from access token', async () => {
+      const loginInput = {
+        username: 'testuser',
+        password: 'password123',
+      };
+
+      const hashedPassword = await bcrypt.hash(loginInput.password, 10);
+
+      mockPrismaService.auth.findUnique.mockResolvedValue({
+        id: 'auth-uuid',
+        userId: 'user-uuid',
+        username: loginInput.username,
+        passwordHash: hashedPassword,
+        salt: 'salt',
+        user: {
+          id: 'user-uuid',
+          username: loginInput.username,
+          name: 'Test User',
+          bio: null,
+          email: null,
+          deletedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+
+      const session = await authService.login(loginInput);
+      const result = await authService.logout(session.accessToken);
+
+      expect(result).toBe(true);
+      expect(mockCacheService.del).toHaveBeenCalled();
     });
   });
 

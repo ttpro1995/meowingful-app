@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react';
 import { useNavigate } from 'react-router-dom';
-import { GET_USER, UPDATE_USER, CHANGE_PASSWORD } from '../graphql/queries';
+import { GET_USER, UPDATE_USER, CHANGE_PASSWORD, LOGOUT } from '../graphql/queries';
 import { useAuth } from '../context/useAuth';
 
 interface User {
@@ -25,6 +25,10 @@ interface ChangePasswordMutation {
   changePassword: boolean;
 }
 
+interface LogoutMutation {
+  logout: boolean;
+}
+
 export default function Profile() {
   const { user: authUser, token, logout, updateUser: updateAuthUser } = useAuth();
   const navigate = useNavigate();
@@ -45,6 +49,7 @@ export default function Profile() {
 
   const [updateUser] = useMutation<UpdateUserMutation>(UPDATE_USER);
   const [changePassword] = useMutation<ChangePasswordMutation>(CHANGE_PASSWORD);
+  const [logoutMutation] = useMutation<LogoutMutation>(LOGOUT);
 
   // Initialize name/bio from data when editing starts (lazy init via function)
   const initializeForm = () => {
@@ -130,9 +135,15 @@ export default function Profile() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      await logoutMutation();
+    } catch {
+      // Fall back to client-side logout to avoid trapping the user in an invalid state.
+    } finally {
+      logout();
+      navigate('/login');
+    }
   };
 
   if (!token) {

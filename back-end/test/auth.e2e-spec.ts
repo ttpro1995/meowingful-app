@@ -41,7 +41,7 @@ describe('AuthResolver (e2e)', () => {
           query: `
             mutation Register($input: RegisterInput!) {
               register(input: $input) {
-                token
+                accessToken
                 user {
                   id
                   username
@@ -63,13 +63,18 @@ describe('AuthResolver (e2e)', () => {
         .expect((res: request.Response) => {
           const body = res.body as GraphQLResponse<{
             register: {
-              token: string;
+              accessToken: string;
               user: { username: string; name: string };
             };
           }>;
           expect(body.data?.register).toBeDefined();
+          expect(body.data?.register.accessToken).toBeDefined();
           expect(body.data?.register.user.username).toBe('testuser');
           expect(body.data?.register.user.name).toBe('Test User');
+          expect(res.headers['set-cookie']).toBeDefined();
+          expect((res.headers['set-cookie'] as string[])[0]).toContain(
+            'refreshToken=',
+          );
         });
     });
 
@@ -80,7 +85,7 @@ describe('AuthResolver (e2e)', () => {
           query: `
             mutation Register($input: RegisterInput!) {
               register(input: $input) {
-                token
+                accessToken
                 user {
                   id
                   username
@@ -114,7 +119,7 @@ describe('AuthResolver (e2e)', () => {
           query: `
             mutation Login($input: LoginInput!) {
               login(input: $input) {
-                token
+                accessToken
                 user {
                   id
                   username
@@ -133,11 +138,12 @@ describe('AuthResolver (e2e)', () => {
         .expect(200)
         .expect((res: request.Response) => {
           const body = res.body as GraphQLResponse<{
-            login: { token: string; user: { username: string } };
+            login: { accessToken: string; user: { username: string } };
           }>;
           expect(body.data?.login).toBeDefined();
-          expect(body.data?.login.token).toBeDefined();
+          expect(body.data?.login.accessToken).toBeDefined();
           expect(body.data?.login.user.username).toBe('testuser');
+          expect(res.headers['set-cookie']).toBeDefined();
         });
     });
 
@@ -148,7 +154,7 @@ describe('AuthResolver (e2e)', () => {
           query: `
             mutation Login($input: LoginInput!) {
               login(input: $input) {
-                token
+                accessToken
                 user {
                   id
                   username
@@ -168,6 +174,189 @@ describe('AuthResolver (e2e)', () => {
           const body = res.body as GraphQLResponse<{ login: null }>;
           expect(body.errors).toBeDefined();
           expect(body.errors?.[0].message).toContain('Invalid credentials');
+        });
+    });
+  });
+
+  describe('/graphql (POST) - Refresh Token and Logout', () => {
+    it('should refresh tokens using HttpOnly cookie', async () => {
+      const username = `refreshuser${Date.now()}`;
+
+      await request(app.getHttpServer() as Parameters<typeof request>[0])
+        .post('/graphql')
+        .send({
+          query: `
+            mutation Register($input: RegisterInput!) {
+              register(input: $input) {
+                user {
+                  id
+                }
+              }
+            }
+          `,
+          variables: {
+            input: {
+              username,
+              password: 'password123',
+              name: 'Refresh Test User',
+            },
+          },
+        })
+        .expect(200);
+
+      const loginRes = await request(
+        app.getHttpServer() as Parameters<typeof request>[0],
+      )
+        .post('/graphql')
+        .send({
+          query: `
+            mutation Login($input: LoginInput!) {
+              login(input: $input) {
+                accessToken
+                user {
+                  id
+                }
+              }
+            }
+          `,
+          variables: {
+            input: {
+              username,
+              password: 'password123',
+            },
+          },
+        })
+        .expect(200);
+
+      const loginCookies = loginRes.headers['set-cookie'] as string[];
+      expect(loginCookies).toBeDefined();
+      expect(loginCookies[0]).toContain('refreshToken=');
+      expect(loginCookies[0]).toContain('HttpOnly');
+      expect(loginCookies[0]).toContain('Secure');
+      expect(loginCookies[0]).toContain('SameSite=Strict');
+
+      const refreshCookieHeader = loginCookies[0].split(';')[0];
+
+      const refreshRes = await request(
+        app.getHttpServer() as Parameters<typeof request>[0],
+      )
+        .post('/graphql')
+        .set('Cookie', refreshCookieHeader)
+        .send({
+          query: `
+            mutation RefreshToken {
+              refreshToken {
+                accessToken
+                user {
+                  id
+                }
+              }
+            }
+          `,
+        })
+        .expect(200);
+
+      const refreshBody = refreshRes.body as GraphQLResponse<{
+        refreshToken: { accessToken: string };
+      }>;
+
+      expect(refreshBody.data?.refreshToken.accessToken).toBeDefined();
+      expect(refreshRes.headers['set-cookie']).toBeDefined();
+    });
+
+    it('should reject refresh after logout', async () => {
+      const username = `logoutrefresh${Date.now()}`;
+
+      await request(app.getHttpServer() as Parameters<typeof request>[0])
+        .post('/graphql')
+        .send({
+          query: `
+            mutation Register($input: RegisterInput!) {
+              register(input: $input) {
+                user {
+                  id
+                }
+              }
+            }
+          `,
+          variables: {
+            input: {
+              username,
+              password: 'password123',
+              name: 'Logout Refresh User',
+            },
+          },
+        })
+        .expect(200);
+
+      const loginRes = await request(
+        app.getHttpServer() as Parameters<typeof request>[0],
+      )
+        .post('/graphql')
+        .send({
+          query: `
+            mutation Login($input: LoginInput!) {
+              login(input: $input) {
+                accessToken
+              }
+            }
+          `,
+          variables: {
+            input: {
+              username,
+              password: 'password123',
+            },
+          },
+        })
+        .expect(200);
+
+      const loginBody = loginRes.body as GraphQLResponse<{
+        login: { accessToken: string };
+      }>;
+      const accessToken = loginBody.data?.login.accessToken;
+      expect(accessToken).toBeDefined();
+
+      const loginCookies = loginRes.headers['set-cookie'] as string[];
+      const refreshCookieHeader = loginCookies[0].split(';')[0];
+
+      await request(app.getHttpServer() as Parameters<typeof request>[0])
+        .post('/graphql')
+        .set('Authorization', `Bearer ${accessToken ?? ''}`)
+        .send({
+          query: `
+            mutation Logout {
+              logout
+            }
+          `,
+        })
+        .expect(200)
+        .expect((res: request.Response) => {
+          const body = res.body as GraphQLResponse<{ logout: boolean }>;
+          expect(body.data?.logout).toBe(true);
+        });
+
+      await request(app.getHttpServer() as Parameters<typeof request>[0])
+        .post('/graphql')
+        .set('Cookie', refreshCookieHeader)
+        .send({
+          query: `
+            mutation RefreshToken {
+              refreshToken {
+                accessToken
+                user {
+                  id
+                }
+              }
+            }
+          `,
+        })
+        .expect(200)
+        .expect((res: request.Response) => {
+          const body = res.body as GraphQLResponse<{ refreshToken: null }>;
+          expect(body.errors).toBeDefined();
+          expect(body.errors?.[0].message).toContain(
+            'Refresh token has been revoked',
+          );
         });
     });
   });

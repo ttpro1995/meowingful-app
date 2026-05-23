@@ -39,7 +39,7 @@ export class User {
 @ObjectType()
 export class AuthPayload {
   @Field(() => String)
-  token: string;
+  accessToken: string;
 
   @Field(() => User)
   user: User;

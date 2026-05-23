@@ -6,7 +6,7 @@ import { useAuth } from '../context/useAuth';
 
 interface RegisterData {
   register: {
-    token: string;
+    accessToken: string;
     user: {
       id: string;
       username: string;
@@ -37,7 +37,7 @@ export default function Register() {
       });
 
       if (data?.register) {
-        login(data.register.token, data.register.user);
+        login(data.register.accessToken, data.register.user);
         navigate('/profile');
       }
     } catch (err: unknown) {

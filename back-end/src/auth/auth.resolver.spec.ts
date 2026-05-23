@@ -8,7 +8,10 @@ describe('AuthResolver', () => {
 
   const mockAuthService = {
     register: jest.fn(),
+    issueSessionForUser: jest.fn(),
     login: jest.fn(),
+    refreshSession: jest.fn(),
+    logout: jest.fn(),
     getUser: jest.fn(),
     getMe: jest.fn(),
     getUsers: jest.fn(),
@@ -16,6 +19,11 @@ describe('AuthResolver', () => {
     updateUserProfile: jest.fn(),
     changePassword: jest.fn(),
   };
+
+  const createMockResponse = () => ({
+    cookie: jest.fn(),
+    clearCookie: jest.fn(),
+  });
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -33,12 +41,14 @@ describe('AuthResolver', () => {
   });
 
   describe('register', () => {
-    it('should register a new user and return token with user', async () => {
+    it('should register a new user and return accessToken with user', async () => {
       const registerInput = {
         username: 'testuser',
         password: 'password123',
         name: 'Test User',
       };
+
+      const response = createMockResponse();
 
       const mockUser: User = {
         id: 'user-uuid',
@@ -50,12 +60,24 @@ describe('AuthResolver', () => {
       };
 
       mockAuthService.register.mockResolvedValue(mockUser);
+      mockAuthService.issueSessionForUser.mockResolvedValue({
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+        user: mockUser,
+      });
 
-      const result = await authResolver.register(registerInput);
+      const result = await authResolver.register(
+        registerInput,
+        response as never,
+      );
 
       expect(mockAuthService.register).toHaveBeenCalledWith(registerInput);
+      expect(mockAuthService.issueSessionForUser).toHaveBeenCalledWith(
+        mockUser.id,
+      );
+      expect(response.cookie).toHaveBeenCalled();
       expect(result.user).toEqual(mockUser);
-      expect(result.token).toBeDefined();
+      expect(result.accessToken).toBeDefined();
     });
   });
 
@@ -66,8 +88,11 @@ describe('AuthResolver', () => {
         password: 'password123',
       };
 
+      const response = createMockResponse();
+
       const mockAuthPayload = {
-        token: 'token-string',
+        accessToken: 'access-token-string',
+        refreshToken: 'refresh-token-string',
         user: {
           id: 'user-uuid',
           username: 'testuser',
@@ -80,10 +105,69 @@ describe('AuthResolver', () => {
 
       mockAuthService.login.mockResolvedValue(mockAuthPayload);
 
-      const result = await authResolver.login(loginInput);
+      const result = await authResolver.login(loginInput, response as never);
 
       expect(mockAuthService.login).toHaveBeenCalledWith(loginInput);
-      expect(result).toEqual(mockAuthPayload);
+      expect(response.cookie).toHaveBeenCalled();
+      expect(result).toEqual({
+        accessToken: mockAuthPayload.accessToken,
+        user: mockAuthPayload.user,
+      });
+    });
+  });
+
+  describe('refreshToken', () => {
+    it('should refresh session using refresh token cookie', async () => {
+      const req = {
+        cookies: { refreshToken: 'refresh-token-value' },
+        headers: {},
+      };
+      const res = createMockResponse();
+
+      const mockPayload = {
+        accessToken: 'new-access-token',
+        refreshToken: 'new-refresh-token',
+        user: {
+          id: 'user-uuid',
+          username: 'testuser',
+          name: 'Test User',
+          bio: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      };
+
+      mockAuthService.refreshSession.mockResolvedValue(mockPayload);
+
+      const result = await authResolver.refreshToken(
+        req as never,
+        res as never,
+      );
+
+      expect(mockAuthService.refreshSession).toHaveBeenCalledWith(
+        'refresh-token-value',
+      );
+      expect(res.cookie).toHaveBeenCalled();
+      expect(result.accessToken).toBe('new-access-token');
+    });
+  });
+
+  describe('logout', () => {
+    it('should logout and clear refresh cookie', async () => {
+      const req = {
+        headers: {
+          authorization: 'Bearer access-token-value',
+        },
+      };
+      const res = createMockResponse();
+
+      mockAuthService.logout.mockResolvedValue(true);
+
+      const result = await authResolver.logout(req as never, res as never);
+
+      expect(mockAuthService.logout).toHaveBeenCalledWith('access-token-value');
+      expect(res.clearCookie).toHaveBeenCalled();
+      expect(result).toBe(true);
     });
   });
 

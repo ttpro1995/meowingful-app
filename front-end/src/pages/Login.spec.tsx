@@ -69,7 +69,7 @@ describe('Login Page', () => {
         result: {
           data: {
             login: {
-              token: 'new-token',
+              accessToken: 'new-token',
               user: {
                 id: '123',
                 username: 'testuser',

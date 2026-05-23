@@ -6,7 +6,7 @@ import { useAuth } from '../context/useAuth';
 
 interface LoginData {
   login: {
-    token: string;
+    accessToken: string;
     user: {
       id: string;
       username: string;
@@ -36,7 +36,7 @@ export default function Login() {
       });
 
       if (data?.login) {
-        login(data.login.token, data.login.user);
+        login(data.login.accessToken, data.login.user);
         navigate('/profile');
       }
     } catch (err: unknown) {
