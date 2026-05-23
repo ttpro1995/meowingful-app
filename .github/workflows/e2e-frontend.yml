@@ -21,8 +21,20 @@ jobs:
         options: >-
           --health-cmd pg_isready --health-interval 5s --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s
+          --health-retries 5
     env:
       DATABASE_URL: postgresql://test:test@localhost:5432/test_db?schema=public
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ''
+      FRONTEND_URL: http://localhost:8500
+      VITE_GRAPHQL_ENDPOINT: http://localhost:3500/graphql
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -55,12 +67,14 @@ jobs:
           npm ci
           npx prisma generate
           npx prisma migrate deploy
+          npm run build
 
       - name: Start backend server
         run: |
           cd back-end
-          npm run start:prod &
-          sleep 10
+          PORT=3500 npm run start:prod &
+          timeout 60 bash -c 'until curl -s http://localhost:3500/api/v1/health >/dev/null; do sleep 2; done' || echo "Backend may not have health endpoint, proceeding anyway"
+          sleep 5
 
       - name: Run Frontend E2E tests
         run: |

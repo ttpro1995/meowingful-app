@@ -17,9 +17,22 @@ test.describe('Auth E2E', () => {
   });
 
   test('should login with valid credentials', async ({ page }) => {
-    await page.goto('/login');
+    // First register a user to login with
+    const username = `loginuser_${Date.now()}`;
+    await page.goto('/register');
+    await page.fill('input#username', username);
+    await page.fill('input#name', 'Login Test User');
+    await page.fill('input#password', 'password123');
+    await page.click('button[type="submit"]');
+    await expect(page).toHaveURL('/profile');
 
-    await page.fill('input#username', 'testuser');
+    // Logout - the button has text "Logout" and class "btn-danger"
+    await page.click('button.btn-danger');
+    await expect(page).toHaveURL('/login');
+    
+    // Now login
+    await page.goto('/login');
+    await page.fill('input#username', username);
     await page.fill('input#password', 'password123');
     await page.click('button[type="submit"]');
 
