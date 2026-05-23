@@ -3,7 +3,7 @@
 # ------------------------------------------------------
 
 type AuthPayload {
-  token: String!
+  accessToken: String!
   user: User!
 }
 
@@ -29,6 +29,8 @@ type MePayload {
 type Mutation {
   changePassword(input: ChangePasswordInput!, userId: String!): Boolean!
   login(input: LoginInput!): AuthPayload!
+  logout: Boolean!
+  refreshToken: AuthPayload!
   register(input: RegisterInput!): AuthPayload!
   updateUser(input: UpdateUserInput!, userId: String!): User!
   updateUserProfile(input: UpdateUserProfileInput!, userId: String!): User!

@@ -3,7 +3,7 @@ import { gql } from '@apollo/client/core';
 export const REGISTER = gql`
   mutation Register($input: RegisterInput!) {
     register(input: $input) {
-      token
+      accessToken
       user {
         id
         username
@@ -19,7 +19,7 @@ export const REGISTER = gql`
 export const LOGIN = gql`
   mutation Login($input: LoginInput!) {
     login(input: $input) {
-      token
+      accessToken
       user {
         id
         username
@@ -29,6 +29,28 @@ export const LOGIN = gql`
         updatedAt
       }
     }
+  }
+`;
+
+export const REFRESH_TOKEN = gql`
+  mutation RefreshToken {
+    refreshToken {
+      accessToken
+      user {
+        id
+        username
+        name
+        bio
+        createdAt
+        updatedAt
+      }
+    }
+  }
+`;
+
+export const LOGOUT = gql`
+  mutation Logout {
+    logout
   }
 `;
 

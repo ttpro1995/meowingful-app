@@ -7,6 +7,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import jwt, { JwtPayload } from 'jsonwebtoken';
+import { randomUUID } from 'crypto';
 import {
   RegisterInput,
   LoginInput,
@@ -18,12 +20,131 @@ import {
   PageInfo,
   User,
 } from './auth.types';
+import { CacheService } from '../redis/cache.service';
+
+interface SessionTokenPayload extends JwtPayload {
+  sub: string;
+  tenantId: string;
+  jti: string;
+  type?: 'refresh';
+}
+
+interface SessionAuthPayload {
+  accessToken: string;
+  refreshToken: string;
+  user: User;
+}
 
 @Injectable()
 export class AuthService {
   private readonly saltRounds = 10;
+  private readonly accessTokenTtlSeconds = 15 * 60;
+  private readonly refreshTokenTtlSeconds = 7 * 24 * 60 * 60;
+  private readonly refreshTokenKeyPrefix = 'refresh_token:';
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cacheService: CacheService,
+  ) {}
+
+  private getJwtSecret(): string {
+    return process.env.JWT_SECRET || 'dev-secret-key-change-in-production';
+  }
+
+  private getRefreshTokenKey(jti: string): string {
+    return `${this.refreshTokenKeyPrefix}${jti}`;
+  }
+
+  private mapUser(user: {
+    id: string;
+    username: string;
+    name: string;
+    bio: string | null;
+    email?: string | null;
+    deletedAt?: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }): User {
+    return {
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      bio: user.bio ?? undefined,
+      email: user.email ?? undefined,
+      deletedAt: user.deletedAt ?? undefined,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+  }
+
+  private verifyToken(token: string): SessionTokenPayload {
+    try {
+      const decoded = jwt.verify(token, this.getJwtSecret());
+
+      if (typeof decoded === 'string') {
+        throw new UnauthorizedException('Invalid token');
+      }
+
+      const payload = decoded as SessionTokenPayload;
+      if (!payload.sub || !payload.jti || !payload.tenantId) {
+        throw new UnauthorizedException('Invalid token payload');
+      }
+
+      return payload;
+    } catch {
+      throw new UnauthorizedException('Invalid or expired token');
+    }
+  }
+
+  private async generateTokenPair(
+    userId: string,
+    tenantId = 'default',
+  ): Promise<{ accessToken: string; refreshToken: string; jti: string }> {
+    const jti = randomUUID();
+    const basePayload = { sub: userId, tenantId, jti };
+    const jwtSecret = this.getJwtSecret();
+
+    const accessToken = jwt.sign(basePayload, jwtSecret, {
+      expiresIn: this.accessTokenTtlSeconds,
+    });
+
+    const refreshToken = jwt.sign(
+      {
+        ...basePayload,
+        type: 'refresh',
+      },
+      jwtSecret,
+      {
+        expiresIn: this.refreshTokenTtlSeconds,
+      },
+    );
+
+    await this.cacheService.set(
+      this.getRefreshTokenKey(jti),
+      userId,
+      this.refreshTokenTtlSeconds,
+    );
+
+    return { accessToken, refreshToken, jti };
+  }
+
+  async issueSessionForUser(userId: string): Promise<SessionAuthPayload> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    const tokenPair = await this.generateTokenPair(user.id);
+
+    return {
+      accessToken: tokenPair.accessToken,
+      refreshToken: tokenPair.refreshToken,
+      user: this.mapUser(user),
+    };
+  }
 
   async register(input: RegisterInput) {
     const { username, password, name } = input;
@@ -72,7 +193,7 @@ export class AuthService {
     };
   }
 
-  async login(input: LoginInput) {
+  async login(input: LoginInput): Promise<SessionAuthPayload> {
     const { username, password } = input;
 
     // Find auth record
@@ -92,22 +213,57 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Generate a simple token (in production, use JWT)
-    const token = Buffer.from(`${auth.userId}:${Date.now()}`).toString(
-      'base64',
-    );
+    const tokenPair = await this.generateTokenPair(auth.userId);
 
     return {
-      token,
-      user: {
-        id: auth.user.id,
-        username: auth.user.username,
-        name: auth.user.name,
-        bio: auth.user.bio ?? undefined,
-        createdAt: auth.user.createdAt,
-        updatedAt: auth.user.updatedAt,
-      },
+      accessToken: tokenPair.accessToken,
+      refreshToken: tokenPair.refreshToken,
+      user: this.mapUser(auth.user),
     };
+  }
+
+  async refreshSession(refreshToken: string): Promise<SessionAuthPayload> {
+    const payload = this.verifyToken(refreshToken);
+
+    if (payload.type !== 'refresh') {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const refreshKey = this.getRefreshTokenKey(payload.jti);
+    const cachedUserId = await this.cacheService.get(refreshKey);
+
+    if (!cachedUserId || cachedUserId !== payload.sub) {
+      throw new UnauthorizedException('Refresh token has been revoked');
+    }
+
+    await this.cacheService.del(refreshKey);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const tokenPair = await this.generateTokenPair(payload.sub, payload.tenantId);
+
+    return {
+      accessToken: tokenPair.accessToken,
+      refreshToken: tokenPair.refreshToken,
+      user: this.mapUser(user),
+    };
+  }
+
+  async logout(accessToken: string): Promise<boolean> {
+    const payload = this.verifyToken(accessToken);
+
+    if (payload.type === 'refresh') {
+      throw new UnauthorizedException('Invalid access token');
+    }
+
+    await this.cacheService.del(this.getRefreshTokenKey(payload.jti));
+    return true;
   }
 
   async getUser(userId: string) {
@@ -120,12 +276,7 @@ export class AuthService {
     }
 
     return {
-      id: user.id,
-      username: user.username,
-      name: user.name,
-      bio: user.bio ?? undefined,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
+      ...this.mapUser(user),
     };
   }
 
@@ -146,12 +297,7 @@ export class AuthService {
     });
 
     return {
-      id: user.id,
-      username: user.username,
-      name: user.name,
-      bio: user.bio ?? undefined,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
+      ...this.mapUser(user),
     };
   }
 
@@ -170,13 +316,7 @@ export class AuthService {
     });
 
     return {
-      id: user.id,
-      username: user.username,
-      name: user.name,
-      bio: user.bio ?? undefined,
-      email: user.email ?? undefined,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
+      ...this.mapUser(user),
     };
   }
 
@@ -334,14 +474,7 @@ export class AuthService {
     return {
       users: orderedUsers.map(
         (user): User => ({
-          id: user.id,
-          username: user.username,
-          name: user.name,
-          bio: user.bio ?? undefined,
-          email: user.email ?? undefined,
-          deletedAt: user.deletedAt ?? undefined,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
+          ...this.mapUser(user),
         }),
       ),
       pageInfo,
