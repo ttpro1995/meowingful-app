@@ -54,37 +54,47 @@ export class AppLoggerService implements LoggerService {
 
   log(message: unknown, ...optionalParams: unknown[]): void {
     const sanitized = sanitize(message);
-    const msg =
-      typeof sanitized === 'string' ? sanitized : JSON.stringify(sanitized);
-    this.logger.info({}, msg, ...optionalParams);
+    if (typeof sanitized === 'object' && sanitized !== null) {
+      this.logger.info(sanitized);
+    } else {
+      this.logger.info({}, String(sanitized), ...optionalParams);
+    }
   }
 
   error(message: unknown, ...optionalParams: unknown[]): void {
     const sanitized = sanitize(message);
-    const msg =
-      typeof sanitized === 'string' ? sanitized : JSON.stringify(sanitized);
-    this.logger.error({}, msg, ...optionalParams);
+    if (typeof sanitized === 'object' && sanitized !== null) {
+      this.logger.error(sanitized);
+    } else {
+      this.logger.error({}, String(sanitized), ...optionalParams);
+    }
   }
 
   warn(message: unknown, ...optionalParams: unknown[]): void {
     const sanitized = sanitize(message);
-    const msg =
-      typeof sanitized === 'string' ? sanitized : JSON.stringify(sanitized);
-    this.logger.warn({}, msg, ...optionalParams);
+    if (typeof sanitized === 'object' && sanitized !== null) {
+      this.logger.warn(sanitized);
+    } else {
+      this.logger.warn({}, String(sanitized), ...optionalParams);
+    }
   }
 
   debug(message: unknown, ...optionalParams: unknown[]): void {
     const sanitized = sanitize(message);
-    const msg =
-      typeof sanitized === 'string' ? sanitized : JSON.stringify(sanitized);
-    this.logger.debug({}, msg, ...optionalParams);
+    if (typeof sanitized === 'object' && sanitized !== null) {
+      this.logger.debug(sanitized);
+    } else {
+      this.logger.debug({}, String(sanitized), ...optionalParams);
+    }
   }
 
   verbose(message: unknown, ...optionalParams: unknown[]): void {
     const sanitized = sanitize(message);
-    const msg =
-      typeof sanitized === 'string' ? sanitized : JSON.stringify(sanitized);
-    this.logger.trace({}, msg, ...optionalParams);
+    if (typeof sanitized === 'object' && sanitized !== null) {
+      this.logger.trace(sanitized);
+    } else {
+      this.logger.trace({}, String(sanitized), ...optionalParams);
+    }
   }
 
   child(bindings: Record<string, unknown>): pino.Logger {

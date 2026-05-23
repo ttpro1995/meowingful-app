@@ -1,9 +1,11 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Logger } from '@nestjs/common';
 import { CacheService } from '../redis/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('health')
 export class HealthController {
+  private readonly logger = new Logger(HealthController.name);
+
   constructor(
     private readonly cacheService: CacheService,
     private readonly prismaService: PrismaService,
@@ -18,14 +20,16 @@ export class HealthController {
     try {
       const ping = await this.cacheService.ping();
       redisStatus = ping === 'PONG' ? 'ok' : 'down';
-    } catch {
+    } catch (error) {
+      this.logger.error('Redis health check failed', error);
       redisStatus = 'down';
     }
 
     try {
       await this.prismaService.$queryRaw`SELECT 1`;
       dbStatus = 'ok';
-    } catch {
+    } catch (error) {
+      this.logger.error('Database health check failed', error);
       dbStatus = 'down';
     }
 

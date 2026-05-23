@@ -85,7 +85,7 @@ services:
     container_name: meowingful-grafana
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
     ports:
       - "3001:3000"
     environment:

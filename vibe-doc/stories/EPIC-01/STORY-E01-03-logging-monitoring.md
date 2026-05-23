@@ -31,10 +31,10 @@ The current backend has no structured logging — NestJS default console output 
 
 ## Acceptance Criteria
 - [x] `docker-compose up` starts Prometheus and Grafana alongside the app
-- [ ] Making a GraphQL request produces a JSON log line with operation name and duration
+- [!] Making a GraphQL request produces a JSON log line with operation name and duration
 - [x] `/health` returns `{ "status": "ok", "db": "ok", "redis": "ok", "uptime": 123 }`
-- [ ] Grafana dashboard shows request rate graph with real data after 5 requests
-- [ ] An intentional DB failure causes a log line at ERROR level with context
+- [!] Grafana dashboard shows request rate graph with real data after 5 requests
+- [!] An intentional DB failure causes a log line at ERROR level with context
 
 ## Technical Specifications
 
