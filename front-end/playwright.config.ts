@@ -20,8 +20,9 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'npm run preview',
+    command: 'npm run preview -- --port 8500',
     url: 'http://localhost:8500',
     reuseExistingServer: !process.env.CI,
+    timeout: 120000,
   },
 });

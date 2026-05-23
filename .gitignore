@@ -1,3 +1,8 @@
 trash/*
 back-end/coverage/
 front-end/coverage/
+
+# Playwright test artifacts
+front-end/playwright-report/
+front-end/test-results/
+front-end/playwright/.cache/
