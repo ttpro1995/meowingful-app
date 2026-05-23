@@ -66,10 +66,15 @@ describe('AuthResolver', () => {
         user: mockUser,
       });
 
-      const result = await authResolver.register(registerInput, response as never);
+      const result = await authResolver.register(
+        registerInput,
+        response as never,
+      );
 
       expect(mockAuthService.register).toHaveBeenCalledWith(registerInput);
-      expect(mockAuthService.issueSessionForUser).toHaveBeenCalledWith(mockUser.id);
+      expect(mockAuthService.issueSessionForUser).toHaveBeenCalledWith(
+        mockUser.id,
+      );
       expect(response.cookie).toHaveBeenCalled();
       expect(result.user).toEqual(mockUser);
       expect(result.accessToken).toBeDefined();
@@ -134,7 +139,10 @@ describe('AuthResolver', () => {
 
       mockAuthService.refreshSession.mockResolvedValue(mockPayload);
 
-      const result = await authResolver.refreshToken(req as never, res as never);
+      const result = await authResolver.refreshToken(
+        req as never,
+        res as never,
+      );
 
       expect(mockAuthService.refreshSession).toHaveBeenCalledWith(
         'refresh-token-value',

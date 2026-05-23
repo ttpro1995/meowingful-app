@@ -59,7 +59,7 @@ export class AuthResolver {
 
   private extractRefreshToken(req: Request): string {
     const cookieToken =
-      req.cookies?.refreshToken ||
+      (req.cookies?.refreshToken as string | undefined) ||
       this.readRefreshTokenFromCookieHeader(req.headers.cookie);
 
     if (!cookieToken) {

@@ -246,7 +246,10 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
-    const tokenPair = await this.generateTokenPair(payload.sub, payload.tenantId);
+    const tokenPair = await this.generateTokenPair(
+      payload.sub,
+      payload.tenantId,
+    );
 
     return {
       accessToken: tokenPair.accessToken,

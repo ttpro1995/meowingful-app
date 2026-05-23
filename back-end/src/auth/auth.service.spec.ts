@@ -272,9 +272,9 @@ describe('AuthService', () => {
       const session = await authService.login(loginInput);
       mockCacheService.get.mockResolvedValue(null);
 
-      await expect(authService.refreshSession(session.refreshToken)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(
+        authService.refreshSession(session.refreshToken),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 

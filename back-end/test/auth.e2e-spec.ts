@@ -72,9 +72,9 @@ describe('AuthResolver (e2e)', () => {
           expect(body.data?.register.user.username).toBe('testuser');
           expect(body.data?.register.user.name).toBe('Test User');
           expect(res.headers['set-cookie']).toBeDefined();
-          expect(
-            (res.headers['set-cookie'] as string[])[0],
-          ).toContain('refreshToken=');
+          expect((res.headers['set-cookie'] as string[])[0]).toContain(
+            'refreshToken=',
+          );
         });
     });
 
@@ -354,7 +354,9 @@ describe('AuthResolver (e2e)', () => {
         .expect((res: request.Response) => {
           const body = res.body as GraphQLResponse<{ refreshToken: null }>;
           expect(body.errors).toBeDefined();
-          expect(body.errors?.[0].message).toContain('Refresh token has been revoked');
+          expect(body.errors?.[0].message).toContain(
+            'Refresh token has been revoked',
+          );
         });
     });
   });

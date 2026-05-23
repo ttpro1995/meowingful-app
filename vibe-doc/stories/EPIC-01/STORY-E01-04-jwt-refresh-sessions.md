@@ -4,7 +4,7 @@
 - **Story ID**: STORY-E01-04
 - **Epic**: EPIC-01 — Foundation & Infrastructure Enhancement
 - **Priority**: High
-- **Status**: Todo
+- **Status**: Done
 - **Created**: 2026-05-09
 - **Related**: vibe-doc/epic-plan.md, vibe-doc/stories/EPIC-01/STORY-E01-02-redis-integration.md
 
@@ -17,23 +17,23 @@ The current MVP issues a single long-lived JWT with no refresh mechanism. There 
 ## Requirements
 
 ### Functional Requirements
-- [ ] Login returns a short-lived **access token** (15 min) and a long-lived **refresh token** (7 days)
-- [ ] Refresh token is stored as an HTTP-only cookie (not accessible to JavaScript)
-- [ ] A `refreshToken` GraphQL mutation exchanges a valid refresh token for new token pair
-- [ ] Logout mutation deletes the refresh token from Redis (immediate revocation)
-- [ ] Refresh token ID (jti claim) is stored in Redis with TTL = 7 days
-- [ ] Reusing a revoked or expired refresh token returns `401 Unauthorized`
+- [x] Login returns a short-lived **access token** (15 min) and a long-lived **refresh token** (7 days)
+- [x] Refresh token is stored as an HTTP-only cookie (not accessible to JavaScript)
+- [x] A `refreshToken` GraphQL mutation exchanges a valid refresh token for new token pair
+- [x] Logout mutation deletes the refresh token from Redis (immediate revocation)
+- [x] Refresh token ID (jti claim) is stored in Redis with TTL = 7 days
+- [x] Reusing a revoked or expired refresh token returns `401 Unauthorized`
 
 ### Non-Functional Requirements
-- [ ] Access token payload: `{ sub: userId, tenantId, jti, iat, exp }`
-- [ ] Refresh token never appears in response body — only set as `HttpOnly; Secure; SameSite=Strict` cookie
-- [ ] Redis key pattern: `refresh_token:<jti>`
+- [x] Access token payload: `{ sub: userId, tenantId, jti, iat, exp }`
+- [x] Refresh token never appears in response body — only set as `HttpOnly; Secure; SameSite=Strict` cookie
+- [x] Redis key pattern: `refresh_token:<jti>`
 
 ## Acceptance Criteria
-- [ ] After login, browser has a `refreshToken` HttpOnly cookie and the response body contains `accessToken`
-- [ ] After access token expiry, `refreshToken` mutation returns a new access token without re-login
-- [ ] After logout, calling `refreshToken` mutation returns `401`
-- [ ] Redis shows the token entry with TTL via `TTL refresh_token:<jti>` command
+- [x] After login, browser has a `refreshToken` HttpOnly cookie and the response body contains `accessToken`
+- [x] After access token expiry, `refreshToken` mutation returns a new access token without re-login
+- [x] After logout, calling `refreshToken` mutation returns `401`
+- [x] Redis shows the token entry with TTL via `TTL refresh_token:<jti>` command
 
 ## Technical Specifications
 
@@ -100,13 +100,13 @@ type Mutation {
 ## Testing Strategy
 
 ### Unit Tests
-- [ ] `generateTokenPair` returns correct structure and stores jti in Redis
-- [ ] `refreshToken` returns 401 for revoked jti
-- [ ] `logout` deletes jti from Redis
+- [x] `generateTokenPair` returns correct structure and stores jti in Redis
+- [x] `refreshToken` returns 401 for revoked jti
+- [x] `logout` deletes jti from Redis
 
 ### Integration Tests
-- [ ] Full login → wait (mock expiry) → refresh → use new token flow
-- [ ] Login → logout → refresh returns 401
+- [x] Full login → wait (mock expiry) → refresh → use new token flow
+- [x] Login → logout → refresh returns 401
 
 ## Dependencies
 
