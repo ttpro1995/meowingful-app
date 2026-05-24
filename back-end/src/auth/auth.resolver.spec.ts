@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthResolver } from './auth.resolver';
 import { AuthService } from './auth.service';
-import { User } from '@prisma/client';
 
 describe('AuthResolver', () => {
   let authResolver: AuthResolver;
@@ -50,7 +49,7 @@ describe('AuthResolver', () => {
 
       const response = createMockResponse();
 
-      const mockUser: User = {
+      const mockUser = {
         id: 'user-uuid',
         username: registerInput.username,
         name: registerInput.name,
@@ -175,7 +174,7 @@ describe('AuthResolver', () => {
     it('should return user by id', async () => {
       const userId = 'user-uuid';
 
-      const mockUser: User = {
+      const mockUser = {
         id: userId,
         username: 'testuser',
         name: 'Test User',
@@ -197,7 +196,7 @@ describe('AuthResolver', () => {
     it('should return user by id', async () => {
       const userId = 'user-uuid';
 
-      const mockUser: User = {
+      const mockUser = {
         id: userId,
         username: 'testuser',
         name: 'Test User',
@@ -217,7 +216,7 @@ describe('AuthResolver', () => {
     it('should handle getMe with different user id', async () => {
       const userId = 'another-user-uuid';
 
-      const mockUser: User = {
+      const mockUser = {
         id: userId,
         username: 'anotheruser',
         name: 'Another User',
@@ -243,7 +242,7 @@ describe('AuthResolver', () => {
         bio: 'Updated bio',
       };
 
-      const mockUser: User = {
+      const mockUser = {
         id: userId,
         username: 'testuser',
         name: updateInput.name,
@@ -269,7 +268,7 @@ describe('AuthResolver', () => {
         name: 'Only Name Update',
       };
 
-      const mockUser: User = {
+      const mockUser = {
         id: userId,
         username: 'testuser',
         name: updateInput.name,
@@ -299,7 +298,7 @@ describe('AuthResolver', () => {
         email: 'test@example.com',
       };
 
-      const mockUser: User = {
+      const mockUser = {
         id: userId,
         username: 'testuser',
         name: updateInput.name,
@@ -327,7 +326,7 @@ describe('AuthResolver', () => {
         bio: 'Updated bio',
       };
 
-      const mockUser: User = {
+      const mockUser = {
         id: userId,
         username: 'testuser',
         name: updateInput.name,
@@ -400,7 +399,7 @@ describe('AuthResolver', () => {
       };
 
       const mockResult = {
-        users: [] as User[],
+        users: [],
         pageInfo: {
           startCursor: undefined,
           endCursor: undefined,

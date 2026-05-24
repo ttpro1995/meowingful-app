@@ -1,18 +1,35 @@
-import { Field, InputType, Int, ObjectType } from '@nestjs/graphql';
+import {
+  Field,
+  InputType,
+  Int,
+  ObjectType,
+  registerEnumType,
+} from '@nestjs/graphql';
+import { UserRole } from '@prisma/client';
 import {
   IsAlphanumeric,
+  IsEmail,
+  IsLowercase,
   IsNotEmpty,
   IsString,
   IsInt,
   IsOptional,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
+
+registerEnumType(UserRole, {
+  name: 'UserRole',
+});
 
 @ObjectType()
 export class User {
   @Field(() => String)
   id: string;
+
+  @Field(() => String)
+  tenantId: string;
 
   @Field(() => String)
   username: string;
@@ -25,6 +42,9 @@ export class User {
 
   @Field(() => String, { nullable: true })
   email?: string;
+
+  @Field(() => UserRole)
+  role: UserRole;
 
   @Field(() => Date, { nullable: true })
   deletedAt?: Date | null;
@@ -70,6 +90,15 @@ export class RegisterInput {
   @IsString({ message: 'Name must be a string' })
   @MaxLength(100, { message: 'Name must be at most 100 characters' })
   name: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+    message:
+      'Tenant slug must contain only lowercase letters, numbers, and dashes',
+  })
+  @IsLowercase({ message: 'Tenant slug must be lowercase' })
+  tenantSlug?: string;
 }
 
 @InputType()
@@ -84,6 +113,15 @@ export class LoginInput {
   @IsNotEmpty({ message: 'Password is required' })
   @MinLength(8, { message: 'Password must be at least 8 characters' })
   password: string;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+    message:
+      'Tenant slug must contain only lowercase letters, numbers, and dashes',
+  })
+  @IsLowercase({ message: 'Tenant slug must be lowercase' })
+  tenantSlug?: string;
 }
 
 @InputType()
@@ -104,6 +142,8 @@ export class UpdateUserProfileInput {
   bio?: string;
 
   @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsEmail({}, { message: 'Email must be valid' })
   email?: string;
 }
 

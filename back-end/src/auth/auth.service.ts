@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { randomUUID } from 'crypto';
@@ -21,10 +21,12 @@ import {
   User,
 } from './auth.types';
 import { CacheService } from '../redis/cache.service';
+import { getTenantContext } from '../tenant/tenant-context.storage';
 
 interface SessionTokenPayload extends JwtPayload {
   sub: string;
   tenantId: string;
+  role?: UserRole;
   jti: string;
   type?: 'refresh';
 }
@@ -38,6 +40,7 @@ interface SessionAuthPayload {
 @Injectable()
 export class AuthService {
   private readonly saltRounds = 10;
+  private readonly defaultTenantSlug = 'default';
   private readonly accessTokenTtlSeconds = 15 * 60;
   private readonly refreshTokenTtlSeconds = 7 * 24 * 60 * 60;
   private readonly refreshTokenKeyPrefix = 'refresh_token:';
@@ -57,6 +60,8 @@ export class AuthService {
 
   private mapUser(user: {
     id: string;
+    tenantId: string;
+    role: UserRole;
     username: string;
     name: string;
     bio: string | null;
@@ -67,14 +72,47 @@ export class AuthService {
   }): User {
     return {
       id: user.id,
+      tenantId: user.tenantId,
       username: user.username,
       name: user.name,
       bio: user.bio ?? undefined,
       email: user.email ?? undefined,
+      role: user.role,
       deletedAt: user.deletedAt ?? undefined,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
+  }
+
+  private async resolveTenantBySlug(tenantSlug?: string) {
+    const slug = tenantSlug ?? this.defaultTenantSlug;
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { slug },
+    });
+
+    if (!tenant) {
+      throw new UnauthorizedException('Invalid tenant context');
+    }
+
+    return tenant;
+  }
+
+  private async ensureTenantIsActive(
+    tenantId: string,
+    allowInactiveForSuperAdmin = false,
+  ): Promise<void> {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      throw new UnauthorizedException('Invalid tenant context');
+    }
+
+    if (!tenant.isActive && !allowInactiveForSuperAdmin) {
+      throw new UnauthorizedException('Tenant is deactivated');
+    }
   }
 
   private verifyToken(token: string): SessionTokenPayload {
@@ -98,10 +136,11 @@ export class AuthService {
 
   private async generateTokenPair(
     userId: string,
-    tenantId = 'default',
+    tenantId: string,
+    role: UserRole,
   ): Promise<{ accessToken: string; refreshToken: string; jti: string }> {
     const jti = randomUUID();
-    const basePayload = { sub: userId, tenantId, jti };
+    const basePayload = { sub: userId, tenantId, role, jti };
     const jwtSecret = this.getJwtSecret();
 
     const accessToken = jwt.sign(basePayload, jwtSecret, {
@@ -137,7 +176,16 @@ export class AuthService {
       throw new BadRequestException('User not found');
     }
 
-    const tokenPair = await this.generateTokenPair(user.id);
+    await this.ensureTenantIsActive(
+      user.tenantId,
+      user.role === UserRole.SUPER_ADMIN,
+    );
+
+    const tokenPair = await this.generateTokenPair(
+      user.id,
+      user.tenantId,
+      user.role,
+    );
 
     return {
       accessToken: tokenPair.accessToken,
@@ -147,11 +195,21 @@ export class AuthService {
   }
 
   async register(input: RegisterInput) {
-    const { username, password, name } = input;
+    const { username, password, name, tenantSlug } = input;
+    const tenant = await this.resolveTenantBySlug(tenantSlug);
+
+    if (!tenant.isActive) {
+      throw new UnauthorizedException('Tenant is deactivated');
+    }
 
     // Check if username already exists
     const existingUser = await this.prisma.user.findUnique({
-      where: { username },
+      where: {
+        tenantId_username: {
+          tenantId: tenant.id,
+          username,
+        },
+      },
     });
 
     if (existingUser) {
@@ -166,6 +224,7 @@ export class AuthService {
     const user = await this.prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {
+          tenantId: tenant.id,
           username,
           name,
         },
@@ -174,6 +233,7 @@ export class AuthService {
       await tx.auth.create({
         data: {
           userId: newUser.id,
+          tenantId: tenant.id,
           username,
           passwordHash,
           salt,
@@ -183,22 +243,25 @@ export class AuthService {
       return newUser;
     });
 
-    return {
-      id: user.id,
-      username: user.username,
-      name: user.name,
-      bio: user.bio ?? undefined,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-    };
+    return this.mapUser(user);
   }
 
   async login(input: LoginInput): Promise<SessionAuthPayload> {
-    const { username, password } = input;
+    const { username, password, tenantSlug } = input;
+    const tenant = await this.resolveTenantBySlug(tenantSlug);
+
+    if (!tenant.isActive) {
+      throw new UnauthorizedException('Tenant is deactivated');
+    }
 
     // Find auth record
     const auth = await this.prisma.auth.findUnique({
-      where: { username },
+      where: {
+        tenantId_username: {
+          tenantId: tenant.id,
+          username,
+        },
+      },
       include: { user: true },
     });
 
@@ -213,7 +276,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const tokenPair = await this.generateTokenPair(auth.userId);
+    const tokenPair = await this.generateTokenPair(
+      auth.userId,
+      auth.tenantId,
+      auth.user.role,
+    );
 
     return {
       accessToken: tokenPair.accessToken,
@@ -246,9 +313,19 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
+    if (user.tenantId !== payload.tenantId) {
+      throw new UnauthorizedException('Invalid tenant context');
+    }
+
+    await this.ensureTenantIsActive(
+      payload.tenantId,
+      (payload.role ?? user.role) === UserRole.SUPER_ADMIN,
+    );
+
     const tokenPair = await this.generateTokenPair(
       payload.sub,
       payload.tenantId,
+      payload.role ?? user.role,
     );
 
     return {
@@ -270,7 +347,7 @@ export class AuthService {
   }
 
   async getUser(userId: string) {
-    const user = await this.prisma.user.findUnique({
+    const user = await this.prisma.user.findFirst({
       where: { id: userId },
     });
 
@@ -285,6 +362,11 @@ export class AuthService {
 
   // New method for getMe query
   async getMe(userId: string) {
+    const context = getTenantContext();
+    if (context?.userId) {
+      return this.getUser(context.userId);
+    }
+
     return this.getUser(userId);
   }
 

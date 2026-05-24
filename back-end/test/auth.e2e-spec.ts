@@ -395,9 +395,37 @@ describe('AuthResolver (e2e)', () => {
       const userId = body.data?.register?.user?.id;
       expect(userId).toBeDefined();
 
+      const loginRes = await request(
+        app.getHttpServer() as Parameters<typeof request>[0],
+      )
+        .post('/graphql')
+        .send({
+          query: `
+            mutation Login($input: LoginInput!) {
+              login(input: $input) {
+                accessToken
+              }
+            }
+          `,
+          variables: {
+            input: {
+              username,
+              password: 'password123',
+            },
+          },
+        })
+        .expect(200);
+
+      const loginBody = loginRes.body as GraphQLResponse<{
+        login: { accessToken: string };
+      }>;
+      const accessToken = loginBody.data?.login.accessToken;
+      expect(accessToken).toBeDefined();
+
       // Now call getMe with the created user ID
       return request(app.getHttpServer() as Parameters<typeof request>[0])
         .post('/graphql')
+        .set('Authorization', `Bearer ${accessToken ?? ''}`)
         .send({
           query: `
             query GetMe($userId: String!) {
