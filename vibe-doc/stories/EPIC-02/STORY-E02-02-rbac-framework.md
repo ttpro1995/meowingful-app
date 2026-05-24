@@ -156,3 +156,12 @@ export class PermissionGuard implements CanActivate {
 - ✅ Integrated `RbacModule` into `AppModule`.
 - ⚠️ **RBAC seed script** (`prisma/seed-rbac.ts`) written, but running it fails with `PrismaClientInitializationError` due to config/env issues. Main app and migrations work, but direct script execution does not pick up config.
 - ⏳ Next: Fix/adapt seed script, then implement Tenant Admin API and integration/tests.
+
+---
+
+### Progress Update (continued, 2026-05-24)
+
+- ✅ Tenant Admin API: Added GraphQL resolver for rolePermissions, grantPermission, revokePermission.
+- ✅ Integrated RBAC permission checks (example: @RequirePermission('tenant:manage') on createTenant mutation).
+- ✅ Types for Role, Permission, and matrix added.
+- ⏳ RBAC seed script still needs fix for direct execution (PrismaClient config issue).

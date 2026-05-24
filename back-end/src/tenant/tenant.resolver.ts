@@ -1,4 +1,5 @@
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { RequirePermission } from '../rbac/permission.guard';
 import { TenantService } from './tenant.service';
 import {
   CreateTenantInput,
@@ -12,6 +13,7 @@ export class TenantResolver {
   constructor(private readonly tenantService: TenantService) {}
 
   @Mutation(() => Tenant)
+  @RequirePermission('tenant:manage')
   async createTenant(@Args('input') input: CreateTenantInput): Promise<Tenant> {
     return this.tenantService.createTenant(input);
   }
