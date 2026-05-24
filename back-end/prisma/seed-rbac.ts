@@ -1,3 +1,12 @@
+
+
+import * as fs from 'fs';
+const envPath = __dirname + '/../.env';
+console.log('Resolved .env path:', envPath);
+console.log('.env exists:', fs.existsSync(envPath));
+import * as dotenv from 'dotenv';
+dotenv.config({ path: envPath });
+console.log('DATABASE_URL after dotenv:', process.env.DATABASE_URL);
 import { PrismaClient, RoleName } from '@prisma/client';
 
 const prisma = new PrismaClient();
