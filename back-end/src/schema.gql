@@ -12,6 +12,13 @@ input ChangePasswordInput {
   newPassword: String!
 }
 
+input CreateTenantInput {
+  contactEmail: String!
+  name: String!
+  planTier: String
+  slug: String!
+}
+
 """
 A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
 """
@@ -19,6 +26,7 @@ scalar DateTime
 
 input LoginInput {
   password: String!
+  tenantSlug: String
   username: String!
 }
 
@@ -28,10 +36,13 @@ type MePayload {
 
 type Mutation {
   changePassword(input: ChangePasswordInput!, userId: String!): Boolean!
+  createTenant(input: CreateTenantInput!): Tenant!
+  deactivateTenant(tenantId: String!): Tenant!
   login(input: LoginInput!): AuthPayload!
   logout: Boolean!
   refreshToken: AuthPayload!
   register(input: RegisterInput!): AuthPayload!
+  updateTenant(input: UpdateTenantInput!, tenantId: String!): Tenant!
   updateUser(input: UpdateUserInput!, userId: String!): User!
   updateUserProfile(input: UpdateUserProfileInput!, userId: String!): User!
 }
@@ -46,13 +57,53 @@ type PageInfo {
 type Query {
   getMe(userId: String!): MePayload!
   getUser(userId: String!): User!
+  myTenant: Tenant!
+  tenants: TenantsPayload!
   users(query: UsersQueryInput!): UsersPayload!
 }
 
 input RegisterInput {
   name: String!
   password: String!
+  tenantSlug: String
   username: String!
+}
+
+type Tenant {
+  contactEmail: String!
+  createdAt: DateTime!
+  id: String!
+  isActive: Boolean!
+  name: String!
+  planTier: String!
+  slug: String!
+  updatedAt: DateTime!
+}
+
+type TenantListItem {
+  activeCourses: Int!
+  contactEmail: String!
+  createdAt: DateTime!
+  id: String!
+  isActive: Boolean!
+  name: String!
+  planTier: String!
+  slug: String!
+  updatedAt: DateTime!
+  userCount: Int!
+}
+
+type TenantsPayload {
+  tenants: [TenantListItem!]!
+  totalCount: Int!
+}
+
+input UpdateTenantInput {
+  contactEmail: String
+  isActive: Boolean
+  name: String
+  planTier: String
+  slug: String
 }
 
 input UpdateUserInput {
@@ -73,8 +124,16 @@ type User {
   email: String
   id: String!
   name: String!
+  role: UserRole!
+  tenantId: String!
   updatedAt: DateTime!
   username: String!
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  TENANT_ADMIN
+  USER
 }
 
 type UsersPayload {

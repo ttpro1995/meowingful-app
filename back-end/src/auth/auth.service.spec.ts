@@ -7,11 +7,22 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
-import { UsersQueryInput, User } from './auth.types';
+import { UsersQueryInput } from './auth.types';
 import { CacheService } from '../redis/cache.service';
 
 describe('AuthService', () => {
   let authService: AuthService;
+
+  const defaultTenant = {
+    id: 'tenant-default',
+    name: 'Default Tenant',
+    slug: 'default',
+    planTier: 'basic',
+    contactEmail: 'admin@default.local',
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
 
   const mockPrismaService = {
     user: {
@@ -26,6 +37,12 @@ describe('AuthService', () => {
     auth: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    tenant: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
     },
@@ -48,6 +65,7 @@ describe('AuthService', () => {
     }).compile();
 
     authService = module.get<AuthService>(AuthService);
+    mockPrismaService.tenant.findUnique.mockResolvedValue(defaultTenant);
   });
 
   afterEach(() => {
@@ -65,9 +83,13 @@ describe('AuthService', () => {
       mockPrismaService.user.findUnique.mockResolvedValue(null);
       const newUser = {
         id: 'uuid-123',
+        tenantId: defaultTenant.id,
         username: registerInput.username,
         name: registerInput.name,
         bio: null,
+        role: 'USER',
+        email: null,
+        deletedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -78,9 +100,13 @@ describe('AuthService', () => {
         async (
           fn: (arg: typeof mockPrismaService) => Promise<{
             id: string;
+            tenantId: string;
             username: string;
             name: string;
             bio: null;
+            role: string;
+            email: null;
+            deletedAt: null;
             createdAt: Date;
             updatedAt: Date;
           }>,
@@ -94,7 +120,12 @@ describe('AuthService', () => {
       expect(result.username).toBe(registerInput.username);
       expect(result.name).toBe(registerInput.name);
       expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
-        where: { username: registerInput.username },
+        where: {
+          tenantId_username: {
+            tenantId: defaultTenant.id,
+            username: registerInput.username,
+          },
+        },
       });
     });
 
@@ -107,6 +138,7 @@ describe('AuthService', () => {
 
       mockPrismaService.user.findUnique.mockResolvedValue({
         id: 'uuid-123',
+        tenantId: defaultTenant.id,
         username: registerInput.username,
       });
 
@@ -128,14 +160,19 @@ describe('AuthService', () => {
       mockPrismaService.auth.findUnique.mockResolvedValue({
         id: 'auth-uuid',
         userId: 'user-uuid',
+        tenantId: defaultTenant.id,
         username: loginInput.username,
         passwordHash: hashedPassword,
         salt: 'salt',
         user: {
           id: 'user-uuid',
+          tenantId: defaultTenant.id,
+          role: 'USER',
           username: loginInput.username,
           name: 'Test User',
           bio: null,
+          email: null,
+          deletedAt: null,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
@@ -173,14 +210,19 @@ describe('AuthService', () => {
       mockPrismaService.auth.findUnique.mockResolvedValue({
         id: 'auth-uuid',
         userId: 'user-uuid',
+        tenantId: defaultTenant.id,
         username: loginInput.username,
         passwordHash: hashedPassword,
         salt: 'salt',
         user: {
           id: 'user-uuid',
+          tenantId: defaultTenant.id,
+          role: 'USER',
           username: loginInput.username,
           name: 'Test User',
           bio: null,
+          email: null,
+          deletedAt: null,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
@@ -204,11 +246,14 @@ describe('AuthService', () => {
       mockPrismaService.auth.findUnique.mockResolvedValue({
         id: 'auth-uuid',
         userId: 'user-uuid',
+        tenantId: defaultTenant.id,
         username: loginInput.username,
         passwordHash: hashedPassword,
         salt: 'salt',
         user: {
           id: 'user-uuid',
+          tenantId: defaultTenant.id,
+          role: 'USER',
           username: loginInput.username,
           name: 'Test User',
           bio: null,
@@ -221,6 +266,8 @@ describe('AuthService', () => {
 
       mockPrismaService.user.findUnique.mockResolvedValue({
         id: 'user-uuid',
+        tenantId: defaultTenant.id,
+        role: 'USER',
         username: loginInput.username,
         name: 'Test User',
         bio: null,
@@ -254,11 +301,14 @@ describe('AuthService', () => {
       mockPrismaService.auth.findUnique.mockResolvedValue({
         id: 'auth-uuid',
         userId: 'user-uuid',
+        tenantId: defaultTenant.id,
         username: loginInput.username,
         passwordHash: hashedPassword,
         salt: 'salt',
         user: {
           id: 'user-uuid',
+          tenantId: defaultTenant.id,
+          role: 'USER',
           username: loginInput.username,
           name: 'Test User',
           bio: null,
@@ -290,11 +340,14 @@ describe('AuthService', () => {
       mockPrismaService.auth.findUnique.mockResolvedValue({
         id: 'auth-uuid',
         userId: 'user-uuid',
+        tenantId: defaultTenant.id,
         username: loginInput.username,
         passwordHash: hashedPassword,
         salt: 'salt',
         user: {
           id: 'user-uuid',
+          tenantId: defaultTenant.id,
+          role: 'USER',
           username: loginInput.username,
           name: 'Test User',
           bio: null,
@@ -317,11 +370,15 @@ describe('AuthService', () => {
     it('should return user by id', async () => {
       const userId = 'user-uuid';
 
-      mockPrismaService.user.findUnique.mockResolvedValue({
+      mockPrismaService.user.findFirst.mockResolvedValue({
         id: userId,
+        tenantId: defaultTenant.id,
+        role: 'USER',
         username: 'testuser',
         name: 'Test User',
         bio: 'Test bio',
+        email: null,
+        deletedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -333,7 +390,7 @@ describe('AuthService', () => {
     });
 
     it('should throw BadRequestException if user not found', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockPrismaService.user.findFirst.mockResolvedValue(null);
 
       await expect(authService.getUser('nonexistent')).rejects.toThrow(
         BadRequestException,
@@ -545,11 +602,15 @@ describe('AuthService', () => {
     it('should return user by id', async () => {
       const userId = 'user-uuid';
 
-      mockPrismaService.user.findUnique.mockResolvedValue({
+      mockPrismaService.user.findFirst.mockResolvedValue({
         id: userId,
+        tenantId: defaultTenant.id,
+        role: 'USER',
         username: 'testuser',
         name: 'Test User',
         bio: 'Test bio',
+        email: null,
+        deletedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -561,7 +622,7 @@ describe('AuthService', () => {
     });
 
     it('should throw BadRequestException if user not found', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockPrismaService.user.findFirst.mockResolvedValue(null);
 
       await expect(authService.getMe('nonexistent')).rejects.toThrow(
         BadRequestException,
@@ -570,21 +631,27 @@ describe('AuthService', () => {
   });
 
   describe('getUsers', () => {
-    const mockUsers: User[] = [
+    const mockUsers = [
       {
         id: 'user-uuid-1',
+        tenantId: defaultTenant.id,
+        role: 'USER',
         username: 'user1',
         name: 'User One',
         bio: null,
+        email: null,
         deletedAt: null,
         createdAt: new Date('2026-01-01T00:00:00Z'),
         updatedAt: new Date('2026-01-01T00:00:00Z'),
       },
       {
         id: 'user-uuid-2',
+        tenantId: defaultTenant.id,
+        role: 'USER',
         username: 'user2',
         name: 'User Two',
         bio: 'Bio for user 2',
+        email: null,
         deletedAt: null,
         createdAt: new Date('2026-01-02T00:00:00Z'),
         updatedAt: new Date('2026-01-02T00:00:00Z'),
@@ -608,7 +675,7 @@ describe('AuthService', () => {
 
     it('should include deleted users when includeDeleted is true', async () => {
       mockPrismaService.user.count.mockResolvedValue(3);
-      const deletedUser: User = {
+      const deletedUser = {
         ...mockUsers[0],
         id: 'deleted-user',
         username: 'deleted',
@@ -725,7 +792,7 @@ describe('AuthService', () => {
     });
 
     it('should include deletedAt in User response when present', async () => {
-      const deletedUser: User = {
+      const deletedUser = {
         ...mockUsers[0],
         id: 'deleted-user',
         username: 'deleted',

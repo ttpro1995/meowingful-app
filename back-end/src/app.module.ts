@@ -12,6 +12,7 @@ import { HealthModule } from './health/health.module';
 import { RedisModule } from './redis/redis.module';
 import { LoggerModule } from './logger/logger.module';
 import { MetricsModule } from './metrics/metrics.module';
+import { TenantModule } from './tenant/tenant.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { MetricsModule } from './metrics/metrics.module';
     }),
     PrismaModule,
     RedisModule,
+    TenantModule,
     AuthModule,
     HealthModule,
     MetricsModule,

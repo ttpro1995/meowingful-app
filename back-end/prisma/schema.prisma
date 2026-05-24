@@ -9,25 +9,55 @@ datasource db {
   provider = "postgresql"
 }
 
+enum UserRole {
+  USER
+  TENANT_ADMIN
+  SUPER_ADMIN
+}
+
+model Tenant {
+  id           String @id @default(uuid())
+  name         String
+  slug         String @unique
+  planTier     String @default("basic")
+  contactEmail String
+  isActive     Boolean @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  users        User[]
+  authRecords  Auth[]
+}
+
 model User {
   id        String   @id @default(uuid())
-  username  String   @unique
+  tenantId  String
+  username  String
   name      String
   bio       String?
   email     String?  @unique
+  role      UserRole @default(USER)
   deletedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
   auth      Auth?
+
+  @@unique([tenantId, username])
+  @@index([tenantId])
 }
 
 model Auth {
   id           String   @id @default(uuid())
   userId       String   @unique
-  username     String   @unique
+  tenantId     String
+  username     String
   passwordHash String
   salt         String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, username])
+  @@index([tenantId])
 }
