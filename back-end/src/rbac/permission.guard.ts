@@ -1,13 +1,34 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException, Inject, CACHE_MANAGER } from '@nestjs/common';
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PermissionService } from './permission.service';
 
 export const REQUIRE_PERMISSION_KEY = 'require_permission';
 
 export function RequirePermission(permission: string) {
-  return (target: any, key?: any, descriptor?: any) => {
-    Reflect.defineMetadata(REQUIRE_PERMISSION_KEY, permission, descriptor.value);
-    return descriptor;
+  return (
+    _target: unknown,
+    _key?: string,
+    descriptor?: PropertyDescriptor,
+  ): PropertyDescriptor => {
+    Reflect.defineMetadata(
+      REQUIRE_PERMISSION_KEY,
+      permission,
+      descriptor?.value,
+    );
+    return descriptor as PropertyDescriptor;
+  };
+}
+
+interface RequestWithUser {
+  user?: {
+    id: string;
+    tenantId: string;
   };
 }
 
@@ -19,16 +40,25 @@ export class PermissionGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const permission = this.reflector.get<string>(REQUIRE_PERMISSION_KEY, context.getHandler());
+    const permission = this.reflector.get<string>(
+      REQUIRE_PERMISSION_KEY,
+      context.getHandler(),
+    );
     if (!permission) return true;
-    const req = context.switchToHttp().getRequest();
+    const req = context.switchToHttp().getRequest<RequestWithUser>();
     const user = req.user;
     const tenantId = user?.tenantId;
     const userId = user?.id;
-    if (!tenantId || !userId) throw new ForbiddenException('Missing tenant or user context');
-    const permissions = await this.permissionService.getUserPermissions(tenantId, userId);
+    if (!tenantId || !userId)
+      throw new ForbiddenException('Missing tenant or user context');
+    const permissions = await this.permissionService.getUserPermissions(
+      tenantId,
+      userId,
+    );
     if (!permissions.includes(permission)) {
-      throw new ForbiddenException(`FORBIDDEN: missing permission ${permission}`);
+      throw new ForbiddenException(
+        `FORBIDDEN: missing permission ${permission}`,
+      );
     }
     return true;
   }

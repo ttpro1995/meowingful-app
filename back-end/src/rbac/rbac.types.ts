@@ -1,4 +1,9 @@
-import { Field, ObjectType } from '@nestjs/graphql';
+import { Field, ObjectType, registerEnumType } from '@nestjs/graphql';
+import { RoleName } from '@prisma/client';
+
+registerEnumType(RoleName, {
+  name: 'RoleName',
+});
 
 @ObjectType()
 export class Permission {
@@ -17,14 +22,14 @@ export class Role {
   @Field(() => String)
   id: string;
 
-  @Field(() => String)
-  name: string;
+  @Field(() => RoleName)
+  name: RoleName;
 }
 
 @ObjectType()
 export class RolePermissionsMatrix {
-  @Field(() => String)
-  roleName: string;
+  @Field(() => RoleName)
+  roleName: RoleName;
 
   @Field(() => [String])
   permissions: string[];

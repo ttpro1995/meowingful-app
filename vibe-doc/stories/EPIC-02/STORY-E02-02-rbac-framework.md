@@ -154,14 +154,17 @@ export class PermissionGuard implements CanActivate {
 - ✅ **Prisma models** for RBAC (`Role`, `Permission`, `RolePermission`, `RoleName`) added and migrated.
 - ✅ **RbacModule**, `PermissionService`, `PermissionGuard`, and `@RequirePermission` decorator implemented in backend.
 - ✅ Integrated `RbacModule` into `AppModule`.
-- ⚠️ **RBAC seed script** (`prisma/seed-rbac.ts`) written, but running it fails with `PrismaClientInitializationError` due to config/env issues. Main app and migrations work, but direct script execution does not pick up config.
-- ⏳ Next: Fix/adapt seed script, then implement Tenant Admin API and integration/tests.
-
----
-
-### Progress Update (continued, 2026-05-24)
-
+- ✅ **RBAC seed script** (`prisma/seed-rbac.ts`) fixed with PrismaPg adapter for direct execution.
 - ✅ Tenant Admin API: Added GraphQL resolver for rolePermissions, grantPermission, revokePermission.
 - ✅ Integrated RBAC permission checks (example: @RequirePermission('tenant:manage') on createTenant mutation).
 - ✅ Types for Role, Permission, and matrix added.
-- ⏳ RBAC seed script still needs fix for direct execution (PrismaClient config issue).
+- ✅ Unit tests for `PermissionGuard` and `PermissionService` written and passing.
+- ✅ E2E tests for RBAC permission enforcement written and passing.
+- ✅ Auto-seeding of roles and permissions when tenant is created via `seedRolesForTenant` in `TenantService`.
+
+## Status: In Review
+
+### Remaining Items
+- [ ] Add UserTenantRole model for user-role assignment (currently mapping UserRole to RoleName)
+- [ ] Dynamic permission grant/revoke tests
+- [ ] Cache invalidation on permission changes (implemented but needs verification)

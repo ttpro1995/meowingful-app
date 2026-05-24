@@ -8,7 +8,8 @@ export interface ResolvedTenantContext {
   isSuperAdmin: boolean;
 }
 
-const tenantContextStorage = new AsyncLocalStorage<ResolvedTenantContext | null>();
+const tenantContextStorage =
+  new AsyncLocalStorage<ResolvedTenantContext | null>();
 
 export function runWithTenantContext<T>(
   context: ResolvedTenantContext | null,

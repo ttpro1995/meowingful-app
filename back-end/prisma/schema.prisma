@@ -27,21 +27,23 @@ model Tenant {
   users        User[]
   authRecords  Auth[]
   roles        Role[]
+  userRoles    UserTenantRole[]
 }
 
 model User {
-  id        String   @id @default(uuid())
-  tenantId  String
-  username  String
-  name      String
-  bio       String?
-  email     String?  @unique
-  role      UserRole @default(USER)
-  deletedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  auth      Auth?
+  id          String           @id @default(uuid())
+  tenantId    String
+  username    String
+  name        String
+  bio         String?
+  email       String?          @unique
+  role        UserRole         @default(USER)
+  deletedAt   DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  auth        Auth?
+  userRoles   UserTenantRole[]
 
   @@unique([tenantId, username])
   @@index([tenantId])
@@ -58,6 +60,8 @@ model Auth {
   updatedAt    DateTime @updatedAt
   tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, username])
 }
 
 enum RoleName {
@@ -79,7 +83,20 @@ model Role {
   name        RoleName
   tenant      Tenant           @relation(fields: [tenantId], references: [id])
   permissions RolePermission[]
+  userRoles   UserTenantRole[]
   @@unique([tenantId, name])
+}
+
+model UserTenantRole {
+  id        String   @id @default(uuid())
+  tenantId  String
+  userId    String
+  roleId    String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  role      Role     @relation(fields: [roleId], references: [id])
+  @@unique([tenantId, userId])
+  @@index([tenantId, roleId])
 }
 
 model Permission {

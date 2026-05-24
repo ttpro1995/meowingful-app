@@ -1,15 +1,16 @@
 
 
-import * as fs from 'fs';
-const envPath = __dirname + '/../.env';
-console.log('Resolved .env path:', envPath);
-console.log('.env exists:', fs.existsSync(envPath));
-import * as dotenv from 'dotenv';
-dotenv.config({ path: envPath });
-console.log('DATABASE_URL after dotenv:', process.env.DATABASE_URL);
+import 'dotenv/config';
 import { PrismaClient, RoleName } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import pg from 'pg';
 
-const prisma = new PrismaClient();
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
 const defaultPermissions = [
   { code: 'lead:create', description: 'Create lead' },
@@ -33,6 +34,9 @@ const rolePermissionMatrix: Record<RoleName, string[]> = {
 };
 
 async function main() {
+  console.log('Starting RBAC seed...');
+  console.log('DATABASE_URL:', process.env.DATABASE_URL?.substring(0, 30) + '...');
+
   // Seed permissions
   for (const perm of defaultPermissions) {
     await prisma.permission.upsert({
@@ -41,9 +45,12 @@ async function main() {
       create: perm,
     });
   }
+  console.log('Permissions seeded');
 
   // For each tenant, create roles and assign permissions
   const tenants = await prisma.tenant.findMany();
+  console.log(`Found ${tenants.length} tenants`);
+
   for (const tenant of tenants) {
     for (const roleName of Object.keys(rolePermissionMatrix) as RoleName[]) {
       const role = await prisma.role.upsert({
@@ -65,6 +72,7 @@ async function main() {
       }
     }
   }
+  console.log('Roles and permissions seeded');
 }
 
 main()
@@ -74,4 +82,5 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect();
+    await pool.end();
   });

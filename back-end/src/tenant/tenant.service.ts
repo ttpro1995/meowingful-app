@@ -13,6 +13,32 @@ import {
   UpdateTenantInput,
 } from './tenant.types';
 import { getTenantContext } from './tenant-context.storage';
+import { RoleName } from '@prisma/client';
+
+const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, string[]> = {
+  SUPER_ADMIN: [
+    'lead:create',
+    'lead:delete',
+    'course:create',
+    'course:enroll',
+    'tenant:manage',
+  ],
+  TENANT_ADMIN: [
+    'lead:create',
+    'lead:delete',
+    'course:create',
+    'course:enroll',
+    'tenant:manage',
+  ],
+  DEVELOPER: [],
+  DIRECTOR: [],
+  SALES_MANAGER: ['lead:create', 'lead:delete'],
+  STAFF: ['lead:create'],
+  ACCOUNTANT: [],
+  HR: [],
+  INSTRUCTOR: ['course:create'],
+  STUDENT: ['course:enroll'],
+};
 
 @Injectable()
 export class TenantService {
@@ -49,11 +75,39 @@ export class TenantService {
     };
   }
 
+  private async seedRolesForTenant(tenantId: string): Promise<void> {
+    for (const roleName of Object.keys(
+      DEFAULT_ROLE_PERMISSIONS,
+    ) as RoleName[]) {
+      const role = await this.prisma.role.create({
+        data: {
+          tenantId,
+          name: roleName,
+        },
+      });
+
+      const permCodes = DEFAULT_ROLE_PERMISSIONS[roleName];
+      for (const code of permCodes) {
+        const perm = await this.prisma.permission.findUnique({
+          where: { code },
+        });
+        if (perm) {
+          await this.prisma.rolePermission.create({
+            data: {
+              roleId: role.id,
+              permissionId: perm.id,
+            },
+          });
+        }
+      }
+    }
+  }
+
   async createTenant(input: CreateTenantInput): Promise<Tenant> {
     this.assertSuperAdmin();
 
     try {
-      return await this.prisma.tenant.create({
+      const tenant = await this.prisma.tenant.create({
         data: {
           name: input.name,
           slug: input.slug,
@@ -61,6 +115,9 @@ export class TenantService {
           contactEmail: input.contactEmail,
         },
       });
+
+      await this.seedRolesForTenant(tenant.id);
+      return tenant;
     } catch (error) {
       if (
         typeof error === 'object' &&
@@ -75,7 +132,10 @@ export class TenantService {
     }
   }
 
-  async updateTenant(tenantId: string, input: UpdateTenantInput): Promise<Tenant> {
+  async updateTenant(
+    tenantId: string,
+    input: UpdateTenantInput,
+  ): Promise<Tenant> {
     this.assertSuperAdmin();
 
     const existing = await this.prisma.tenant.findUnique({
