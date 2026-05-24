@@ -8,7 +8,8 @@ import {
 } from '@apollo/client/core';
 import { ApolloProvider } from '@apollo/client/react';
 import { useMutation, useQuery } from '@apollo/client/react';
-import { onError } from '@apollo/client/link/error';
+import { ErrorLink } from '@apollo/client/link/error';
+import { CombinedGraphQLErrors } from '@apollo/client/errors';
 import { print } from 'graphql/language/printer';
 import { REFRESH_TOKEN } from './queries';
 
@@ -57,21 +58,16 @@ const authMiddleware = new ApolloLink((operation, forward) => {
   return forward(operation);
 });
 
-const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) => {
-  const hasUnauthenticatedGraphQLError =
-    graphQLErrors?.some(
-      (error) => error.extensions?.code === 'UNAUTHENTICATED',
-    ) ?? false;
+const errorLink = new ErrorLink(({ error, operation, forward }) => {
+  if (!CombinedGraphQLErrors.is(error)) {
+    return;
+  }
 
-  const statusCode =
-    networkError &&
-    typeof networkError === 'object' &&
-    'statusCode' in networkError &&
-    typeof networkError.statusCode === 'number'
-      ? networkError.statusCode
-      : undefined;
+  const hasUnauthenticatedGraphQLError = error.errors.some(
+    (e) => (e.extensions?.code as string | undefined) === 'UNAUTHENTICATED',
+  );
 
-  if (!forward || (!hasUnauthenticatedGraphQLError && statusCode !== 401)) {
+  if (!forward || !hasUnauthenticatedGraphQLError) {
     return;
   }
 
