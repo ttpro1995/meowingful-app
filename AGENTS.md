@@ -146,3 +146,7 @@ See [README.md](README.md) for detailed directory structure. Key directories:
 - `front-end/src/` - React application code  
 - `back-end/prisma/` - Database schema and migrations
 - `back-end/test/` and `front-end/src/**/*.test.*` - Test files
+
+## Work-log 
+After work, make a new markdown file in `work-log` report what have been done. 
+In addition, if you are working on the story, make comment and mark into the stories what have been done. 
