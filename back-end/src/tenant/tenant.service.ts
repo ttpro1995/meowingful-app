@@ -44,6 +44,16 @@ const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, string[]> = {
 export class TenantService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private isPrismaUniqueConstraintError(
+    error: unknown,
+  ): error is { code: string } {
+    if (typeof error !== 'object' || error === null || !('code' in error)) {
+      return false;
+    }
+
+    return typeof error.code === 'string';
+  }
+
   private assertAuthenticated(): string {
     const context = getTenantContext();
     if (!context?.tenantId) {
@@ -118,13 +128,8 @@ export class TenantService {
 
       await this.seedRolesForTenant(tenant.id);
       return tenant;
-    } catch (error) {
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        error.code === 'P2002'
-      ) {
+    } catch (error: unknown) {
+      if (this.isPrismaUniqueConstraintError(error) && error.code === 'P2002') {
         throw new ConflictException('Tenant slug already exists');
       }
 
@@ -151,13 +156,8 @@ export class TenantService {
         where: { id: tenantId },
         data: input,
       });
-    } catch (error) {
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        error.code === 'P2002'
-      ) {
+    } catch (error: unknown) {
+      if (this.isPrismaUniqueConstraintError(error) && error.code === 'P2002') {
         throw new ConflictException('Tenant slug already exists');
       }
 

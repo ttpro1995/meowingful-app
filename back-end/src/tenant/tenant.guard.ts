@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { GqlExecutionContext } from '@nestjs/graphql';
 import { UserRole } from '@prisma/client';
+import { GraphQLResolveInfo } from 'graphql';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { RequestWithTenantContext } from './tenant.request';
 
@@ -78,7 +79,7 @@ export class TenantGuard implements CanActivate {
 
     const gqlContext = GqlExecutionContext.create(context);
     const ctx = gqlContext.getContext<{ req: RequestWithTenantContext }>();
-    const info = gqlContext.getInfo();
+    const info = gqlContext.getInfo<GraphQLResolveInfo>();
     const req = ctx.req;
 
     if (!req) {

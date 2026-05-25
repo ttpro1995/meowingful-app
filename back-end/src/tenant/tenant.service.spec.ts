@@ -48,7 +48,7 @@ describe('TenantService', () => {
       isSuperAdmin: false,
     });
 
-    mockPrismaService.tenant.findUnique = jest.fn().mockResolvedValue({
+    const findUniqueMock = jest.fn().mockResolvedValue({
       id: 'tenant-1',
       name: 'Tenant 1',
       slug: 'tenant-1',
@@ -58,11 +58,12 @@ describe('TenantService', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
+    mockPrismaService.tenant.findUnique = findUniqueMock;
 
     const tenant = await service.myTenant();
 
     expect(tenant.id).toBe('tenant-1');
-    expect(mockPrismaService.tenant.findUnique).toHaveBeenCalledWith({
+    expect(findUniqueMock).toHaveBeenCalledWith({
       where: { id: 'tenant-1' },
     });
   });

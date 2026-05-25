@@ -11,6 +11,35 @@ export class PrismaService
 {
   private readonly tenantScopedModels = new Set(['User', 'Auth']);
 
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+  }
+
+  private toRecord(value: unknown): Record<string, unknown> {
+    return this.isRecord(value) ? value : {};
+  }
+
+  private withTenantId(
+    value: unknown,
+    tenantId: string,
+  ): Record<string, unknown> {
+    return {
+      ...this.toRecord(value),
+      tenantId,
+    };
+  }
+
+  private withTenantIdForCreateMany(
+    value: unknown,
+    tenantId: string,
+  ): Record<string, unknown> | Record<string, unknown>[] {
+    if (Array.isArray(value)) {
+      return value.map((item) => this.withTenantId(item, tenantId));
+    }
+
+    return this.withTenantId(value, tenantId);
+  }
+
   constructor() {
     super({
       adapter: new PrismaPg(
@@ -37,48 +66,41 @@ export class PrismaService
               return query(args);
             }
 
-            const nextArgs = args ?? {};
+            const nextArgs = this.toRecord(args);
 
             if (operation === 'create') {
-              nextArgs.data = {
-                ...nextArgs.data,
-                tenantId: context.tenantId,
-              };
+              nextArgs.data = this.withTenantId(
+                nextArgs.data,
+                context.tenantId,
+              );
 
               return query(nextArgs);
             }
 
             if (operation === 'createMany') {
-              if (Array.isArray(nextArgs.data)) {
-                nextArgs.data = nextArgs.data.map((item: object) => ({
-                  ...item,
-                  tenantId: context.tenantId,
-                }));
-              } else {
-                nextArgs.data = {
-                  ...nextArgs.data,
-                  tenantId: context.tenantId,
-                };
-              }
+              nextArgs.data = this.withTenantIdForCreateMany(
+                nextArgs.data,
+                context.tenantId,
+              );
 
               return query(nextArgs);
             }
 
-            nextArgs.where = {
-              ...(nextArgs.where ?? {}),
-              tenantId: context.tenantId,
-            };
+            nextArgs.where = this.withTenantId(
+              nextArgs.where,
+              context.tenantId,
+            );
 
             if (operation === 'upsert') {
-              nextArgs.create = {
-                ...nextArgs.create,
-                tenantId: context.tenantId,
-              };
+              nextArgs.create = this.withTenantId(
+                nextArgs.create,
+                context.tenantId,
+              );
 
-              nextArgs.update = {
-                ...nextArgs.update,
-                tenantId: context.tenantId,
-              };
+              nextArgs.update = this.withTenantId(
+                nextArgs.update,
+                context.tenantId,
+              );
             }
 
             return query(nextArgs);
