@@ -1,8 +1,10 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Logger, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Redis } from 'ioredis';
 import { CacheService } from './cache.service';
 import { REDIS_CLIENT } from './redis.constants';
+
+const redisLogger = new Logger('RedisModule');
 
 @Global()
 @Module({
@@ -27,6 +29,7 @@ import { REDIS_CLIENT } from './redis.constants';
 
         const client = new Redis({
           ...redisOptions,
+          lazyConnect: process.env.NODE_ENV === 'test',
           retryStrategy: (times) => {
             if (times > 10) {
               return null;
@@ -35,13 +38,15 @@ import { REDIS_CLIENT } from './redis.constants';
           },
         });
 
-        client.on('connect', () => {
-          console.log('Redis connected');
-        });
+        if (process.env.NODE_ENV !== 'test') {
+          client.on('connect', () => {
+            redisLogger.log('Redis connected');
+          });
 
-        client.on('error', (err) => {
-          console.warn('Redis connection error:', err.message);
-        });
+          client.on('error', (err) => {
+            redisLogger.warn(`Redis connection error: ${err.message}`);
+          });
+        }
 
         return client;
       },
