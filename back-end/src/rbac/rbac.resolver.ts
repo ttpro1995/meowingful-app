@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RolePermissionsMatrix } from './rbac.types';
 import { ForbiddenException } from '@nestjs/common';
 import { getTenantContext } from '../tenant/tenant-context.storage';
+import { RoleName } from '@prisma/client';
 
 @Resolver()
 export class RbacResolver {
@@ -31,7 +32,7 @@ export class RbacResolver {
   @Mutation(() => Boolean)
   async grantPermission(
     @Args('tenantId') tenantId: string,
-    @Args('roleName') roleName: string,
+    @Args('roleName', { type: () => RoleName }) roleName: RoleName,
     @Args('permissionCode') permissionCode: string,
   ) {
     const role = await this.prisma.role.findFirst({
@@ -56,7 +57,7 @@ export class RbacResolver {
   @Mutation(() => Boolean)
   async revokePermission(
     @Args('tenantId') tenantId: string,
-    @Args('roleName') roleName: string,
+    @Args('roleName', { type: () => RoleName }) roleName: RoleName,
     @Args('permissionCode') permissionCode: string,
   ) {
     const role = await this.prisma.role.findFirst({
