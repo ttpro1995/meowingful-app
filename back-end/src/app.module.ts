@@ -13,6 +13,7 @@ import { RedisModule } from './redis/redis.module';
 import { LoggerModule } from './logger/logger.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { TenantModule } from './tenant/tenant.module';
+import { RbacModule } from './rbac/rbac.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { TenantModule } from './tenant/tenant.module';
     AuthModule,
     HealthModule,
     MetricsModule,
+    RbacModule,
   ],
   controllers: [AppController],
   providers: [AppService],

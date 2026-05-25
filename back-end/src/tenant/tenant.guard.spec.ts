@@ -82,8 +82,9 @@ describe('TenantGuard', () => {
     expect(result).toBe(true);
 
     const gql = GqlExecutionContext.create(context);
-    const req = gql.getContext<{ req: { tenantContext: { tenantId: string } } }>()
-      .req;
+    const req = gql.getContext<{
+      req: { tenantContext: { tenantId: string } };
+    }>().req;
 
     expect(req.tenantContext.tenantId).toBe('tenant-1');
     expect(req.tenantContext.isSuperAdmin).toBe(true);

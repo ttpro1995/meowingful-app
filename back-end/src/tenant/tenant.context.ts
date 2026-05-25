@@ -1,4 +1,9 @@
-import { Inject, Injectable, Scope, UnauthorizedException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Scope,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { UserRole } from '@prisma/client';
 import { RequestWithTenantContext } from './tenant.request';

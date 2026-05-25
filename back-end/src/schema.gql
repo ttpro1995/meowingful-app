@@ -38,10 +38,12 @@ type Mutation {
   changePassword(input: ChangePasswordInput!, userId: String!): Boolean!
   createTenant(input: CreateTenantInput!): Tenant!
   deactivateTenant(tenantId: String!): Tenant!
+  grantPermission(permissionCode: String!, roleName: String!, tenantId: String!): Boolean!
   login(input: LoginInput!): AuthPayload!
   logout: Boolean!
   refreshToken: AuthPayload!
   register(input: RegisterInput!): AuthPayload!
+  revokePermission(permissionCode: String!, roleName: String!, tenantId: String!): Boolean!
   updateTenant(input: UpdateTenantInput!, tenantId: String!): Tenant!
   updateUser(input: UpdateUserInput!, userId: String!): User!
   updateUserProfile(input: UpdateUserProfileInput!, userId: String!): User!
@@ -58,6 +60,7 @@ type Query {
   getMe(userId: String!): MePayload!
   getUser(userId: String!): User!
   myTenant: Tenant!
+  rolePermissions(tenantId: String!): [RolePermissionsMatrix!]!
   tenants: TenantsPayload!
   users(query: UsersQueryInput!): UsersPayload!
 }
@@ -67,6 +70,24 @@ input RegisterInput {
   password: String!
   tenantSlug: String
   username: String!
+}
+
+enum RoleName {
+  ACCOUNTANT
+  DEVELOPER
+  DIRECTOR
+  HR
+  INSTRUCTOR
+  SALES_MANAGER
+  STAFF
+  STUDENT
+  SUPER_ADMIN
+  TENANT_ADMIN
+}
+
+type RolePermissionsMatrix {
+  permissions: [String!]!
+  roleName: RoleName!
 }
 
 type Tenant {

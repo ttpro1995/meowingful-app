@@ -26,21 +26,24 @@ model Tenant {
   updatedAt    DateTime @updatedAt
   users        User[]
   authRecords  Auth[]
+  roles        Role[]
+  userRoles    UserTenantRole[]
 }
 
 model User {
-  id        String   @id @default(uuid())
-  tenantId  String
-  username  String
-  name      String
-  bio       String?
-  email     String?  @unique
-  role      UserRole @default(USER)
-  deletedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  auth      Auth?
+  id          String           @id @default(uuid())
+  tenantId    String
+  username    String
+  name        String
+  bio         String?
+  email       String?          @unique
+  role        UserRole         @default(USER)
+  deletedAt   DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  auth        Auth?
+  userRoles   UserTenantRole[]
 
   @@unique([tenantId, username])
   @@index([tenantId])
@@ -59,5 +62,54 @@ model Auth {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, username])
-  @@index([tenantId])
+}
+
+enum RoleName {
+  SUPER_ADMIN
+  TENANT_ADMIN
+  DEVELOPER
+  DIRECTOR
+  SALES_MANAGER
+  STAFF
+  ACCOUNTANT
+  HR
+  INSTRUCTOR
+  STUDENT
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  tenantId    String
+  name        RoleName
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  permissions RolePermission[]
+  userRoles   UserTenantRole[]
+  @@unique([tenantId, name])
+}
+
+model UserTenantRole {
+  id        String   @id @default(uuid())
+  tenantId  String
+  userId    String
+  roleId    String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  role      Role     @relation(fields: [roleId], references: [id])
+  @@unique([tenantId, userId])
+  @@index([tenantId, roleId])
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  code        String           @unique  // e.g. "lead:create"
+  description String
+  rolePerms   RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  @@id([roleId, permissionId])
 }

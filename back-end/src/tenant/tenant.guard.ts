@@ -17,14 +17,21 @@ interface AccessTokenPayload extends JwtPayload {
 
 @Injectable()
 export class TenantGuard implements CanActivate {
-  private readonly publicMutations = new Set(['register', 'login', 'refreshToken']);
+  private readonly publicMutations = new Set([
+    'register',
+    'login',
+    'refreshToken',
+  ]);
   private readonly publicQueries = new Set(['__schema', '__type']);
 
   private getJwtSecret(): string {
     return process.env.JWT_SECRET || 'dev-secret-key-change-in-production';
   }
 
-  private isPublicOperation(parentTypeName: string, fieldName: string): boolean {
+  private isPublicOperation(
+    parentTypeName: string,
+    fieldName: string,
+  ): boolean {
     if (parentTypeName === 'Mutation' && this.publicMutations.has(fieldName)) {
       return true;
     }

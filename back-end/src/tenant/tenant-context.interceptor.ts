@@ -11,10 +11,7 @@ import { RequestWithTenantContext } from './tenant.request';
 
 @Injectable()
 export class TenantContextInterceptor implements NestInterceptor {
-  intercept(
-    context: ExecutionContext,
-    next: CallHandler,
-  ): Observable<unknown> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     if (context.getType<'graphql' | 'http'>() !== 'graphql') {
       return next.handle();
     }

@@ -146,3 +146,25 @@ export class PermissionGuard implements CanActivate {
 | Permission explosion (too many codes) | Medium | Group by resource; document naming convention |
 | Cache stale after role change | Low | 60s TTL + explicit invalidation on mutation |
 | Tenant admin grants themselves SUPER_ADMIN | High | `SUPER_ADMIN` role cannot be assigned via tenant API; only via platform seed |
+
+---
+
+### Progress Update (2026-05-24)
+
+- ✅ **Prisma models** for RBAC (`Role`, `Permission`, `RolePermission`, `RoleName`) added and migrated.
+- ✅ **RbacModule**, `PermissionService`, `PermissionGuard`, and `@RequirePermission` decorator implemented in backend.
+- ✅ Integrated `RbacModule` into `AppModule`.
+- ✅ **RBAC seed script** (`prisma/seed-rbac.ts`) fixed with PrismaPg adapter for direct execution.
+- ✅ Tenant Admin API: Added GraphQL resolver for rolePermissions, grantPermission, revokePermission.
+- ✅ Integrated RBAC permission checks (example: @RequirePermission('tenant:manage') on createTenant mutation).
+- ✅ Types for Role, Permission, and matrix added.
+- ✅ Unit tests for `PermissionGuard` and `PermissionService` written and passing.
+- ✅ E2E tests for RBAC permission enforcement written and passing.
+- ✅ Auto-seeding of roles and permissions when tenant is created via `seedRolesForTenant` in `TenantService`.
+
+## Status: In Review
+
+### Remaining Items
+- [ ] Add UserTenantRole model for user-role assignment (currently mapping UserRole to RoleName)
+- [ ] Dynamic permission grant/revoke tests
+- [ ] Cache invalidation on permission changes (implemented but needs verification)
