@@ -41,7 +41,7 @@ export class RbacResolver {
   @Mutation(() => Boolean)
   async grantPermission(
     @Args('tenantId') tenantId: string,
-    @Args('roleName') roleName: string,
+    @Args('roleName', { type: () => RoleName }) roleName: RoleName,
     @Args('permissionCode') permissionCode: string,
   ) {
     const parsedRoleName = this.parseRoleName(roleName);
@@ -67,7 +67,7 @@ export class RbacResolver {
   @Mutation(() => Boolean)
   async revokePermission(
     @Args('tenantId') tenantId: string,
-    @Args('roleName') roleName: string,
+    @Args('roleName', { type: () => RoleName }) roleName: RoleName,
     @Args('permissionCode') permissionCode: string,
   ) {
     const parsedRoleName = this.parseRoleName(roleName);

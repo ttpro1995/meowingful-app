@@ -11,8 +11,8 @@ const USER_ROLE_TO_ROLE_NAME: Record<UserRole, RoleName | null> = {
 };
 
 const ROLE_NAME_TO_USER_ROLE: Partial<Record<RoleName, UserRole>> = {
-  SUPER_ADMIN: UserRole.SUPER_ADMIN,
-  TENANT_ADMIN: UserRole.TENANT_ADMIN,
+  [RoleName.SUPER_ADMIN]: UserRole.SUPER_ADMIN,
+  [RoleName.TENANT_ADMIN]: UserRole.TENANT_ADMIN,
 };
 
 @Injectable()
@@ -111,23 +111,15 @@ export class PermissionService {
 
   async invalidateRolePermissions(
     tenantId: string,
-    roleName: string,
+    roleName: RoleName,
   ): Promise<void> {
-    const parsedRoleName = Object.values(RoleName).find(
-      (value) => value === roleName,
-    );
-
-    if (!parsedRoleName) {
-      return;
-    }
-
     const userIds = new Set<string>();
 
     const memberUsers = await this.prisma.userTenantRole.findMany({
       where: {
         tenantId,
         role: {
-          name: parsedRoleName,
+          name: roleName,
         },
       },
       select: { userId: true },
@@ -138,7 +130,7 @@ export class PermissionService {
       userIds.add(memberUser.userId);
     }
 
-    const legacyRole = ROLE_NAME_TO_USER_ROLE[parsedRoleName];
+    const legacyRole = ROLE_NAME_TO_USER_ROLE[roleName];
     if (legacyRole) {
       const legacyUsers = await this.prisma.user.findMany({
         where: {
