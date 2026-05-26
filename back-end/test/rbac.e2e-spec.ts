@@ -72,6 +72,21 @@ describe('RBAC (e2e)', () => {
       },
     });
 
+    const staffRole = await prismaService.role.create({
+      data: {
+        tenantId: tenant.id,
+        name: 'STAFF',
+      },
+    });
+
+    await prismaService.userTenantRole.create({
+      data: {
+        userId: user.id,
+        tenantId: tenant.id,
+        roleId: staffRole.id,
+      },
+    });
+
     const loginRes = await request(
       app.getHttpServer() as Parameters<typeof request>[0],
     )
@@ -150,6 +165,37 @@ describe('RBAC (e2e)', () => {
         username: adminUser.username,
         passwordHash: await bcrypt.hash('password123', 10),
         salt: 'salt',
+      },
+    });
+
+    const tenantManagePermission = await prismaService.permission.upsert({
+      where: { code: 'tenant:manage' },
+      update: { description: 'Manage tenant' },
+      create: {
+        code: 'tenant:manage',
+        description: 'Manage tenant',
+      },
+    });
+
+    const superAdminRole = await prismaService.role.create({
+      data: {
+        tenantId: tenant.id,
+        name: 'SUPER_ADMIN',
+      },
+    });
+
+    await prismaService.rolePermission.create({
+      data: {
+        roleId: superAdminRole.id,
+        permissionId: tenantManagePermission.id,
+      },
+    });
+
+    await prismaService.userTenantRole.create({
+      data: {
+        userId: adminUser.id,
+        tenantId: tenant.id,
+        roleId: superAdminRole.id,
       },
     });
 

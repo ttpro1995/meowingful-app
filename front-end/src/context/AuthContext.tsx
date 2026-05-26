@@ -7,8 +7,14 @@ function getInitialState(): { token: string | null; user: User | null } {
   const storedToken = localStorage.getItem('token');
   const storedUser = localStorage.getItem('user');
   if (storedToken && storedUser) {
-    return { token: storedToken, user: JSON.parse(storedUser) as User };
+    try {
+      return { token: storedToken, user: JSON.parse(storedUser) as User };
+    } catch {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    }
   }
+
   return { token: null, user: null };
 }
 

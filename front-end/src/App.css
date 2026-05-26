@@ -49,7 +49,8 @@ h2 {
 }
 
 .form-group input,
-.form-group textarea {
+.form-group textarea,
+.form-group select {
   width: 100%;
   padding: 12px;
   border: 1px solid #ddd;
@@ -59,7 +60,8 @@ h2 {
 }
 
 .form-group input:focus,
-.form-group textarea:focus {
+.form-group textarea:focus,
+.form-group select:focus {
   outline: none;
   border-color: #3498db;
 }
@@ -69,6 +71,9 @@ h2 {
 }
 
 .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   padding: 12px;
   background-color: #3498db;
@@ -78,6 +83,7 @@ h2 {
   font-size: 16px;
   font-weight: 500;
   cursor: pointer;
+  text-decoration: none;
   transition: background-color 0.3s;
 }
 
@@ -91,6 +97,9 @@ h2 {
 }
 
 .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 12px 24px;
   background-color: #95a5a6;
   color: white;
@@ -99,6 +108,7 @@ h2 {
   font-size: 16px;
   font-weight: 500;
   cursor: pointer;
+  text-decoration: none;
   transition: background-color 0.3s;
 }
 
@@ -107,6 +117,9 @@ h2 {
 }
 
 .btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   padding: 12px;
   background-color: #e74c3c;
@@ -116,6 +129,7 @@ h2 {
   font-size: 16px;
   font-weight: 500;
   cursor: pointer;
+  text-decoration: none;
   transition: background-color 0.3s;
 }
 

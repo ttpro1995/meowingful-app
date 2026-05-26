@@ -1,14 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react';
 import { useNavigate } from 'react-router-dom';
-import { GET_USER, UPDATE_USER, CHANGE_PASSWORD, LOGOUT } from '../graphql/queries';
+import {
+  CHANGE_PASSWORD,
+  GET_USER,
+  LOGOUT,
+  MY_TENANTS,
+  SWITCH_TENANT,
+  UPDATE_USER,
+} from '../graphql/queries';
 import { useAuth } from '../context/useAuth';
 
 interface User {
   id: string;
+  tenantId: string;
   username: string;
   name: string;
   bio: string | null;
+  role: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -29,11 +38,54 @@ interface LogoutMutation {
   logout: boolean;
 }
 
+interface TenantMembership {
+  tenantId: string;
+  tenantName: string;
+  tenantSlug: string;
+  roleNames: string[];
+}
+
+interface MyTenantsQuery {
+  myTenants: {
+    memberships: TenantMembership[];
+  };
+}
+
+interface SwitchTenantMutation {
+  switchTenant: {
+    accessToken: string;
+    user: {
+      id: string;
+      tenantId: string;
+      username: string;
+      name: string;
+      bio: string | null;
+      role: string;
+    };
+  };
+}
+
+function toGraphQLErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && 'graphQLErrors' in error) {
+    const graphqlError = error as { graphQLErrors: Array<{ message: string }> };
+    return graphqlError.graphQLErrors[0]?.message || fallback;
+  }
+
+  return fallback;
+}
+
 export default function Profile() {
-  const { user: authUser, token, logout, updateUser: updateAuthUser } = useAuth();
+  const {
+    user: authUser,
+    token,
+    login,
+    logout,
+    updateUser: updateAuthUser,
+  } = useAuth();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [selectedTenantId, setSelectedTenantId] = useState('');
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -47,9 +99,28 @@ export default function Profile() {
     skip: !authUser?.id,
   });
 
+  const {
+    data: membershipsData,
+    refetch: refetchTenants,
+  } = useQuery<MyTenantsQuery>(MY_TENANTS, {
+    skip: !token,
+  });
+
   const [updateUser] = useMutation<UpdateUserMutation>(UPDATE_USER);
   const [changePassword] = useMutation<ChangePasswordMutation>(CHANGE_PASSWORD);
   const [logoutMutation] = useMutation<LogoutMutation>(LOGOUT);
+  const [switchTenantMutation, { loading: switchingTenant }] =
+    useMutation<SwitchTenantMutation>(SWITCH_TENANT);
+
+  const memberships = useMemo(
+    () => membershipsData?.myTenants.memberships ?? [],
+    [membershipsData],
+  );
+
+  const activeMembership = useMemo(
+    () => memberships.find((membership) => membership.tenantId === authUser?.tenantId),
+    [authUser?.tenantId, memberships],
+  );
 
   // Initialize name/bio from data when editing starts (lazy init via function)
   const initializeForm = () => {
@@ -65,6 +136,18 @@ export default function Profile() {
       navigate('/login');
     }
   }, [token, navigate]);
+
+  useEffect(() => {
+    if (authUser?.tenantId) {
+      setSelectedTenantId(authUser.tenantId);
+      return;
+    }
+
+    const firstTenantId = memberships[0]?.tenantId;
+    if (firstTenantId) {
+      setSelectedTenantId(firstTenantId);
+    }
+  }, [authUser?.tenantId, memberships]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,15 +166,10 @@ export default function Profile() {
         updateAuthUser({ name, bio });
         setIsEditing(false);
         setSuccess('Profile updated successfully!');
-        refetch();
+        void refetch();
       }
     } catch (err: unknown) {
-      if (err instanceof Error && 'graphQLErrors' in err) {
-        const graphqlError = err as { graphQLErrors: Array<{ message: string }> };
-        setError(graphqlError.graphQLErrors[0]?.message || 'Update failed');
-      } else {
-        setError('Update failed');
-      }
+      setError(toGraphQLErrorMessage(err, 'Update failed'));
     }
   };
 
@@ -126,12 +204,39 @@ export default function Profile() {
         setConfirmPassword('');
       }
     } catch (err: unknown) {
-      if (err instanceof Error && 'graphQLErrors' in err) {
-        const graphqlError = err as { graphQLErrors: Array<{ message: string }> };
-        setError(graphqlError.graphQLErrors[0]?.message || 'Password change failed');
-      } else {
-        setError('Password change failed');
+      setError(toGraphQLErrorMessage(err, 'Password change failed'));
+    }
+  };
+
+  const handleTenantSwitch = async () => {
+    setError('');
+    setSuccess('');
+
+    if (!selectedTenantId) {
+      setError('Please select a tenant');
+      return;
+    }
+
+    if (selectedTenantId === authUser?.tenantId) {
+      setSuccess('You are already using this tenant.');
+      return;
+    }
+
+    try {
+      const { data } = await switchTenantMutation({
+        variables: {
+          tenantId: selectedTenantId,
+        },
+      });
+
+      if (data?.switchTenant) {
+        login(data.switchTenant.accessToken, data.switchTenant.user);
+        setSuccess('Active tenant switched successfully!');
+        void refetch();
+        void refetchTenants();
       }
+    } catch (err: unknown) {
+      setError(toGraphQLErrorMessage(err, 'Failed to switch tenant'));
     }
   };
 
@@ -163,9 +268,49 @@ export default function Profile() {
           <strong>Username:</strong> {authUser?.username}
         </div>
         <div className="info-row">
-          <strong>Member since:</strong>{' '}
-          {authUser ? new Date().toLocaleDateString() : ''}
+          <strong>Active tenant:</strong>{' '}
+          {activeMembership?.tenantName || authUser?.tenantId || 'Unknown'}
         </div>
+        <div className="info-row">
+          <strong>Member since:</strong>{' '}
+          {data?.getUser?.createdAt
+            ? new Date(data.getUser.createdAt).toLocaleDateString()
+            : ''}
+        </div>
+      </div>
+
+      <div className="profile-section">
+        <h2>Tenant Context</h2>
+
+        {memberships.length === 0 ? (
+          <p>No memberships found for your account.</p>
+        ) : (
+          <>
+            <div className="form-group">
+              <label htmlFor="tenantId">Active Tenant</label>
+              <select
+                id="tenantId"
+                value={selectedTenantId}
+                onChange={(e) => setSelectedTenantId(e.target.value)}
+              >
+                {memberships.map((membership) => (
+                  <option key={membership.tenantId} value={membership.tenantId}>
+                    {membership.tenantName} ({membership.roleNames.join(', ')})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleTenantSwitch}
+              className="btn-primary"
+              disabled={switchingTenant || selectedTenantId === authUser?.tenantId}
+            >
+              {switchingTenant ? 'Switching...' : 'Switch Tenant'}
+            </button>
+          </>
+        )}
       </div>
 
       <div className="profile-section">
@@ -211,14 +356,11 @@ export default function Profile() {
             <div className="info-row">
               <strong>Name:</strong> {data?.getUser?.name || name}
             </div>
-<div className="info-row">
+            <div className="info-row">
               <strong>Bio:</strong>{' '}
               {data?.getUser?.bio || bio || 'No bio set'}
             </div>
-            <button
-              onClick={initializeForm}
-              className="btn-primary"
-            >
+            <button onClick={initializeForm} className="btn-primary">
               Edit Profile
             </button>
           </div>

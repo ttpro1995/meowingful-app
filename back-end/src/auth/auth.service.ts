@@ -130,16 +130,6 @@ export class AuthService {
     });
   }
 
-  private async ensureMembershipForUser(user: {
-    id: string;
-    tenantId: string;
-    role: UserRole;
-  }): Promise<void> {
-    await this.prisma.$transaction((tx) =>
-      this.ensureMembershipForUserTx(tx, user),
-    );
-  }
-
   private async userHasTenantMembership(
     userId: string,
     tenantId: string,
@@ -253,8 +243,14 @@ export class AuthService {
       user.tenantId,
       user.role === UserRole.SUPER_ADMIN,
     );
+    const hasMembership = await this.userHasTenantMembership(
+      user.id,
+      user.tenantId,
+    );
 
-    await this.ensureMembershipForUser(user);
+    if (!hasMembership) {
+      throw new UnauthorizedException('UNAUTHORIZED');
+    }
 
     const tokenPair = await this.generateTokenPair(
       user.id,
@@ -353,7 +349,14 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    await this.ensureMembershipForUser(auth.user);
+    const hasMembership = await this.userHasTenantMembership(
+      auth.userId,
+      auth.tenantId,
+    );
+
+    if (!hasMembership) {
+      throw new UnauthorizedException('UNAUTHORIZED');
+    }
 
     const tokenPair = await this.generateTokenPair(
       auth.userId,
@@ -397,12 +400,8 @@ export class AuthService {
       payload.tenantId,
     );
 
-    if (!hasMembership && user.tenantId !== payload.tenantId) {
+    if (!hasMembership) {
       throw new UnauthorizedException('Invalid tenant context');
-    }
-
-    if (!hasMembership && user.tenantId === payload.tenantId) {
-      await this.ensureMembershipForUser(user);
     }
 
     await this.ensureTenantIsActive(
@@ -430,7 +429,7 @@ export class AuthService {
     userId: string,
     tenantId: string,
   ): Promise<SessionAuthPayload> {
-    const user = await this.prisma.user.findUnique({
+    const user = await this.prisma.user.findFirst({
       where: { id: userId },
     });
 

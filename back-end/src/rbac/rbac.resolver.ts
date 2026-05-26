@@ -38,6 +38,19 @@ export class RbacResolver {
     }));
   }
 
+  @Query(() => [String])
+  async myPermissions(): Promise<string[]> {
+    const context = getTenantContext();
+    if (!context?.tenantId || !context.userId) {
+      throw new ForbiddenException('UNAUTHORIZED');
+    }
+
+    return this.permissionService.getUserPermissions(
+      context.tenantId,
+      context.userId,
+    );
+  }
+
   @Mutation(() => Boolean)
   async grantPermission(
     @Args('tenantId') tenantId: string,

@@ -2,9 +2,11 @@ import { createContext } from 'react';
 
 interface User {
   id: string;
+  tenantId?: string;
   username: string;
   name: string;
   bio?: string | null;
+  role?: string;
 }
 
 interface AuthContextType {

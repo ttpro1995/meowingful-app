@@ -3,12 +3,21 @@ import { GqlExecutionContext } from '@nestjs/graphql';
 import jwt from 'jsonwebtoken';
 import { UserRole } from '@prisma/client';
 import { TenantGuard } from './tenant.guard';
+import { PrismaService } from '../prisma/prisma.service';
 
 describe('TenantGuard', () => {
   let guard: TenantGuard;
+  const mockPrismaService = {
+    userTenantRole: {
+      findFirst: jest.fn(),
+    },
+  };
 
   beforeEach(() => {
-    guard = new TenantGuard();
+    guard = new TenantGuard(mockPrismaService as unknown as PrismaService);
+    mockPrismaService.userTenantRole.findFirst.mockResolvedValue({
+      userId: 'user-1',
+    });
     jest.clearAllMocks();
   });
 
@@ -40,27 +49,29 @@ describe('TenantGuard', () => {
     } as ExecutionContext;
   }
 
-  it('allows public register mutation without token', () => {
+  it('allows public register mutation without token', async () => {
     const context = mockGraphqlContext({
       parentTypeName: 'Mutation',
       fieldName: 'register',
     });
 
-    const result = guard.canActivate(context);
+    const result = await guard.canActivate(context);
 
     expect(result).toBe(true);
   });
 
-  it('rejects protected query when token is missing', () => {
+  it('rejects protected query when token is missing', async () => {
     const context = mockGraphqlContext({
       parentTypeName: 'Query',
       fieldName: 'users',
     });
 
-    expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
-  it('resolves tenant context from valid access token', () => {
+  it('resolves tenant context from valid access token', async () => {
     const accessToken = jwt.sign(
       {
         sub: 'user-1',
@@ -77,7 +88,7 @@ describe('TenantGuard', () => {
       authorization: `Bearer ${accessToken}`,
     });
 
-    const result = guard.canActivate(context);
+    const result = await guard.canActivate(context);
 
     expect(result).toBe(true);
 
@@ -88,5 +99,29 @@ describe('TenantGuard', () => {
 
     expect(req.tenantContext.tenantId).toBe('tenant-1');
     expect(req.tenantContext.isSuperAdmin).toBe(true);
+  });
+
+  it('rejects when user is no longer a member of the token tenant', async () => {
+    mockPrismaService.userTenantRole.findFirst.mockResolvedValueOnce(null);
+
+    const accessToken = jwt.sign(
+      {
+        sub: 'user-1',
+        tenantId: 'tenant-1',
+        role: UserRole.USER,
+      },
+      'dev-secret-key-change-in-production',
+      { expiresIn: 900 },
+    );
+
+    const context = mockGraphqlContext({
+      parentTypeName: 'Query',
+      fieldName: 'users',
+      authorization: `Bearer ${accessToken}`,
+    });
+
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 });

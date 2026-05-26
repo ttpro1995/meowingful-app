@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation } from '@apollo/client/react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { LOGIN } from '../graphql/queries';
 import { useAuth } from '../context/useAuth';
 
@@ -9,9 +9,11 @@ interface LoginData {
     accessToken: string;
     user: {
       id: string;
+      tenantId: string;
       username: string;
       name: string;
       bio: string | null;
+      role: string;
     };
   };
 }
@@ -22,6 +24,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loginMutation, { loading }] = useMutation<LoginData>(LOGIN);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -37,7 +40,12 @@ export default function Login() {
 
       if (data?.login) {
         login(data.login.accessToken, data.login.user);
-        navigate('/profile');
+        const inviteToken = searchParams.get('inviteToken');
+        if (inviteToken) {
+          navigate(`/invite?token=${encodeURIComponent(inviteToken)}`);
+        } else {
+          navigate('/profile');
+        }
       }
     } catch (err: unknown) {
       if (err instanceof Error && 'graphQLErrors' in err) {

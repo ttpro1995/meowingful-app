@@ -9,9 +9,11 @@ interface RegisterData {
     accessToken: string;
     user: {
       id: string;
+      tenantId: string;
       username: string;
       name: string;
       bio: string | null;
+      role: string;
     };
   };
 }
