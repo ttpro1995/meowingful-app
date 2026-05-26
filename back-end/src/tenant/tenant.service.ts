@@ -73,8 +73,12 @@ export class TenantService {
   private async mapTenantListItem(tenant: Tenant): Promise<TenantListItem> {
     const userCount = await this.prisma.user.count({
       where: {
-        tenantId: tenant.id,
         deletedAt: null,
+        userRoles: {
+          some: {
+            tenantId: tenant.id,
+          },
+        },
       },
     });
 

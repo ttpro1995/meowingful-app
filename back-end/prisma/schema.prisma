@@ -28,6 +28,7 @@ model Tenant {
   authRecords  Auth[]
   roles        Role[]
   userRoles    UserTenantRole[]
+  invitations  Invitation[]
 }
 
 model User {
@@ -84,19 +85,38 @@ model Role {
   tenant      Tenant           @relation(fields: [tenantId], references: [id])
   permissions RolePermission[]
   userRoles   UserTenantRole[]
+  invitations Invitation[]
   @@unique([tenantId, name])
 }
 
 model UserTenantRole {
-  id        String   @id @default(uuid())
-  tenantId  String
   userId    String
+  tenantId  String
   roleId    String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
-  role      Role     @relation(fields: [roleId], references: [id])
-  @@unique([tenantId, userId])
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  @@id([userId, tenantId, roleId])
+  @@index([tenantId, userId])
   @@index([tenantId, roleId])
+}
+
+model Invitation {
+  id         String    @id @default(uuid())
+  tenantId   String
+  email      String
+  roleId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  declinedAt DateTime?
+  createdAt  DateTime  @default(now())
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role       Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, email])
+  @@index([expiresAt])
 }
 
 model Permission {

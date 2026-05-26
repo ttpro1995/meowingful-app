@@ -14,6 +14,7 @@ import { LoggerModule } from './logger/logger.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { TenantModule } from './tenant/tenant.module';
 import { RbacModule } from './rbac/rbac.module';
+import { MembershipModule } from './membership/membership.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { RbacModule } from './rbac/rbac.module';
     HealthModule,
     MetricsModule,
     RbacModule,
+    MembershipModule,
   ],
   controllers: [AppController],
   providers: [AppService],

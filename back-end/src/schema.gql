@@ -2,6 +2,10 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+input AcceptInvitationInput {
+  token: String!
+}
+
 type AuthPayload {
   accessToken: String!
   user: User!
@@ -24,6 +28,31 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 """
 scalar DateTime
 
+input DeclineInvitationInput {
+  token: String!
+}
+
+type Invitation {
+  acceptedAt: DateTime
+  createdAt: DateTime!
+  declinedAt: DateTime
+  email: String!
+  expiresAt: DateTime!
+  id: String!
+  roleId: String!
+  tenantId: String!
+}
+
+input InviteMemberInput {
+  email: String!
+  roleId: String!
+}
+
+type InviteMemberPayload {
+  invitation: Invitation!
+  invitationToken: String!
+}
+
 input LoginInput {
   password: String!
   tenantSlug: String
@@ -34,19 +63,55 @@ type MePayload {
   user: User!
 }
 
+type MemberRole {
+  roleId: String!
+  roleName: String!
+}
+
+type MembersPageInfo {
+  endCursor: String
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+}
+
+type MembersPayload {
+  members: [TenantMember!]!
+  pageInfo: MembersPageInfo!
+  totalCount: Int!
+}
+
+input MembersQueryInput {
+  after: String
+  before: String
+  first: Int
+  includeDeleted: Boolean
+  last: Int
+}
+
 type Mutation {
+  acceptInvitation(input: AcceptInvitationInput!): Boolean!
   changePassword(input: ChangePasswordInput!, userId: String!): Boolean!
   createTenant(input: CreateTenantInput!): Tenant!
   deactivateTenant(tenantId: String!): Tenant!
+  declineInvitation(input: DeclineInvitationInput!): Boolean!
   grantPermission(permissionCode: String!, roleName: String!, tenantId: String!): Boolean!
+  inviteMember(input: InviteMemberInput!): InviteMemberPayload!
   login(input: LoginInput!): AuthPayload!
   logout: Boolean!
   refreshToken: AuthPayload!
   register(input: RegisterInput!): AuthPayload!
+  removeMember(userId: String!): Boolean!
   revokePermission(permissionCode: String!, roleName: String!, tenantId: String!): Boolean!
+  switchTenant(tenantId: String!): AuthPayload!
+  updateMemberRoles(input: UpdateMemberRolesInput!): TenantMember!
   updateTenant(input: UpdateTenantInput!, tenantId: String!): Tenant!
   updateUser(input: UpdateUserInput!, userId: String!): User!
   updateUserProfile(input: UpdateUserProfileInput!, userId: String!): User!
+}
+
+type MyTenantsPayload {
+  memberships: [TenantMembership!]!
 }
 
 type PageInfo {
@@ -59,7 +124,9 @@ type PageInfo {
 type Query {
   getMe(userId: String!): MePayload!
   getUser(userId: String!): User!
+  members(query: MembersQueryInput): MembersPayload!
   myTenant: Tenant!
+  myTenants: MyTenantsPayload!
   rolePermissions(tenantId: String!): [RolePermissionsMatrix!]!
   tenants: TenantsPayload!
   users(query: UsersQueryInput!): UsersPayload!
@@ -114,9 +181,34 @@ type TenantListItem {
   userCount: Int!
 }
 
+type TenantMember {
+  bio: String
+  createdAt: DateTime!
+  deletedAt: DateTime
+  email: String
+  id: String!
+  name: String!
+  roles: [MemberRole!]!
+  tenantId: String!
+  updatedAt: DateTime!
+  username: String!
+}
+
+type TenantMembership {
+  roleNames: [String!]!
+  tenantId: String!
+  tenantName: String!
+  tenantSlug: String!
+}
+
 type TenantsPayload {
   tenants: [TenantListItem!]!
   totalCount: Int!
+}
+
+input UpdateMemberRolesInput {
+  roleIds: [String!]!
+  userId: String!
 }
 
 input UpdateTenantInput {
