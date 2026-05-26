@@ -2,13 +2,18 @@ import { Injectable, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { REDIS_CLIENT } from '../redis/redis.constants';
 import { Redis } from 'ioredis';
-import { RoleName } from '@prisma/client';
+import { RoleName, UserRole } from '@prisma/client';
 
 const USER_ROLE_TO_ROLE_NAME: Record<string, RoleName | null> = {
   SUPER_ADMIN: RoleName.SUPER_ADMIN,
   TENANT_ADMIN: RoleName.TENANT_ADMIN,
   USER: null,
 } as const;
+
+const ROLE_NAME_TO_USER_ROLE: Partial<Record<RoleName, UserRole>> = {
+  [RoleName.SUPER_ADMIN]: UserRole.SUPER_ADMIN,
+  [RoleName.TENANT_ADMIN]: UserRole.TENANT_ADMIN,
+};
 
 @Injectable()
 export class PermissionService {
@@ -61,10 +66,15 @@ export class PermissionService {
 
   async invalidateRolePermissions(
     tenantId: string,
-    roleName: string,
+    roleName: RoleName,
   ): Promise<void> {
+    const userRole = ROLE_NAME_TO_USER_ROLE[roleName];
+    if (!userRole) {
+      return;
+    }
+
     const users = await this.prisma.user.findMany({
-      where: { tenantId, role: roleName },
+      where: { tenantId, role: userRole },
     });
     for (const user of users) {
       await this.invalidateUserPermissions(tenantId, user.id);

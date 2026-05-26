@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { UserRole } from '@prisma/client';
-import { RequestWithTenantContext } from './tenant.request';
+import type { RequestWithTenantContext } from './tenant.request';
 
 @Injectable({ scope: Scope.REQUEST })
 export class TenantContext {
