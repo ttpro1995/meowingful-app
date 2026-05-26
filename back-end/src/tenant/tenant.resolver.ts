@@ -5,6 +5,7 @@ import {
   CreateTenantInput,
   Tenant,
   TenantsPayload,
+  TenantsQueryInput,
   UpdateTenantInput,
 } from './tenant.types';
 
@@ -32,8 +33,10 @@ export class TenantResolver {
   }
 
   @Query(() => TenantsPayload)
-  async tenants(): Promise<TenantsPayload> {
-    return this.tenantService.tenants();
+  async tenants(
+    @Args('query', { nullable: true }) query?: TenantsQueryInput,
+  ): Promise<TenantsPayload> {
+    return this.tenantService.tenants(query ?? {});
   }
 
   @Query(() => Tenant)

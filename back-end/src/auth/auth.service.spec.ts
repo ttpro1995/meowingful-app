@@ -9,6 +9,7 @@ import {
 import * as bcrypt from 'bcryptjs';
 import { UsersQueryInput } from './auth.types';
 import { CacheService } from '../redis/cache.service';
+import { SortDirection } from '../shared/pagination/pagination.args';
 
 describe('AuthService', () => {
   let authService: AuthService;
@@ -668,227 +669,128 @@ describe('AuthService', () => {
       },
     ];
 
-    it('should return paginated users excluding deleted', async () => {
+    it('returns paginated users with page metadata', async () => {
       mockPrismaService.user.count.mockResolvedValue(2);
       mockPrismaService.user.findMany.mockResolvedValue(mockUsers);
 
-      const query: UsersQueryInput = { first: 10 };
+      const query: UsersQueryInput = {
+        pagination: {
+          page: 1,
+          limit: 20,
+        },
+      };
       const result = await authService.getUsers(query);
 
+      expect(result.data.length).toBe(2);
       expect(result.users.length).toBe(2);
       expect(result.totalCount).toBe(2);
-      expect(result.pageInfo.hasNextPage).toBe(false);
-      expect(mockPrismaService.user.count).toHaveBeenCalledWith({
-        where: { deletedAt: null },
+      expect(result.pageInfo).toEqual({
+        total: 2,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
       });
-    });
-
-    it('should include deleted users when includeDeleted is true', async () => {
-      mockPrismaService.user.count.mockResolvedValue(3);
-      const deletedUser = {
-        ...mockUsers[0],
-        id: 'deleted-user',
-        username: 'deleted',
-        name: 'Deleted User',
-        deletedAt: new Date('2026-05-01T00:00:00Z'),
-      };
-
-      mockPrismaService.user.findMany.mockResolvedValue([
-        ...mockUsers,
-        deletedUser,
-      ]);
-      mockPrismaService.user.count.mockResolvedValue(3);
-
-      const query: UsersQueryInput = { first: 10, includeDeleted: true };
-      const result = await authService.getUsers(query);
-
-      expect(result.users.length).toBe(3);
-      expect(result.users.some((u) => u.deletedAt)).toBe(true);
-    });
-
-    it('should filter out deleted users by default', async () => {
-      mockPrismaService.user.findMany.mockResolvedValue(mockUsers);
-      mockPrismaService.user.count.mockResolvedValue(2);
-
-      const query: UsersQueryInput = { first: 10 };
-      const result = await authService.getUsers(query);
-
-      expect(result.users.every((u) => !u.deletedAt)).toBe(true);
-
-      // Check findMany was called with correct where clause
-      const findManyCalls = mockPrismaService.user.findMany.mock.calls;
-      expect(findManyCalls.length).toBeGreaterThan(0);
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-      const firstCallArgs = findManyCalls[0][0];
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      expect(firstCallArgs.where).toEqual(
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          deletedAt: null,
+          skip: 0,
+          take: 20,
         }),
       );
     });
 
-    it('should support forward pagination with after cursor', async () => {
+    it('clamps limit to 100 for unbounded requests', async () => {
+      mockPrismaService.user.count.mockResolvedValue(150);
+      mockPrismaService.user.findMany.mockResolvedValue(mockUsers);
+
+      await authService.getUsers({
+        pagination: {
+          page: 1,
+          limit: 200,
+        },
+      });
+
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 100,
+          skip: 0,
+        }),
+      );
+    });
+
+    it('includes deleted users when filter.includeDeleted is true', async () => {
+      mockPrismaService.user.findMany.mockResolvedValue(mockUsers);
+      mockPrismaService.user.count.mockResolvedValue(2);
+
+      await authService.getUsers({
+        filter: {
+          includeDeleted: true,
+        },
+      });
+
+      expect(mockPrismaService.user.count).toHaveBeenCalledWith({
+        where: {},
+      });
+    });
+
+    it('applies orderBy and common filters', async () => {
       mockPrismaService.user.count.mockResolvedValue(2);
       mockPrismaService.user.findMany.mockResolvedValue(mockUsers);
 
-      const afterCursor = Buffer.from(
-        new Date('2026-01-01T00:00:00Z').toISOString(),
-      ).toString('base64');
+      const createdAtFilter = new Date('2026-01-01T00:00:00Z').toISOString();
 
       const query: UsersQueryInput = {
-        first: 10,
-        after: afterCursor,
+        pagination: {
+          page: 2,
+          limit: 1,
+        },
+        orderBy: {
+          field: 'username',
+          direction: SortDirection.DESC,
+        },
+        filter: {
+          username: { contains: 'user' },
+          role: { equals: 'USER' },
+          createdAt: { gte: createdAtFilter },
+        },
       };
 
-      const result = await authService.getUsers(query);
+      await authService.getUsers(query);
 
-      expect(result.pageInfo.startCursor).toBeDefined();
-      expect(result.pageInfo.endCursor).toBeDefined();
-    });
-
-    it('should support backward pagination with before cursor', async () => {
-      mockPrismaService.user.count.mockResolvedValue(2);
-      mockPrismaService.user.findMany.mockResolvedValue(
-        [...mockUsers].reverse(),
+      expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skip: 1,
+          take: 1,
+          orderBy: { username: 'desc' },
+        }),
       );
 
-      const beforeCursor = Buffer.from(
-        new Date('2026-01-02T00:00:00Z').toISOString(),
-      ).toString('base64');
-
-      const query: UsersQueryInput = {
-        last: 10,
-        before: beforeCursor,
+      const countCalls = (
+        mockPrismaService.user.count as {
+          mock: { calls: unknown[][] };
+        }
+      ).mock.calls;
+      const countArgs = countCalls[0]?.[0] as {
+        where: {
+          username?: { contains?: string; mode?: string };
+          role?: { equals?: string };
+          createdAt?: { gte?: Date };
+        };
       };
-
-      const result = await authService.getUsers(query);
-
-      expect(result.users.length).toBe(2);
-      expect(result.pageInfo.startCursor).toBeDefined();
-      expect(result.pageInfo.endCursor).toBeDefined();
+      expect(countArgs.where.username?.contains).toBe('user');
+      expect(countArgs.where.username?.mode).toBe('insensitive');
+      expect(countArgs.where.role?.equals).toBe('USER');
+      expect(countArgs.where.createdAt?.gte).toEqual(new Date(createdAtFilter));
     });
 
-    it('should set hasNextPage correctly', async () => {
-      mockPrismaService.user.count.mockResolvedValue(3);
-      mockPrismaService.user.findFirst.mockResolvedValue({
-        id: 'user-uuid-3',
-        username: 'user3',
-        name: 'User Three',
-        bio: null,
-        deletedAt: null,
-        createdAt: new Date('2026-01-03T00:00:00Z'),
-        updatedAt: new Date('2026-01-03T00:00:00Z'),
-      });
-      mockPrismaService.user.findMany.mockResolvedValue(mockUsers);
-
-      const query: UsersQueryInput = { first: 2 };
-      const result = await authService.getUsers(query);
-
-      expect(result.pageInfo.hasNextPage).toBe(true);
-    });
-
-    it('should return empty results when no users exist', async () => {
-      mockPrismaService.user.count.mockResolvedValue(0);
-      mockPrismaService.user.findMany.mockResolvedValue([]);
-
-      const query: UsersQueryInput = { first: 10 };
-      const result = await authService.getUsers(query);
-
-      expect(result.users).toEqual([]);
-      expect(result.totalCount).toBe(0);
-      expect(result.pageInfo.hasNextPage).toBe(false);
-      expect(result.pageInfo.hasPreviousPage).toBe(false);
-    });
-
-    it('should include deletedAt in User response when present', async () => {
-      const deletedUser = {
-        ...mockUsers[0],
-        id: 'deleted-user',
-        username: 'deleted',
-        name: 'Deleted User',
-        deletedAt: new Date('2026-05-01T00:00:00Z'),
-      };
-
-      mockPrismaService.user.count.mockResolvedValue(1);
-      mockPrismaService.user.findMany.mockResolvedValue([deletedUser]);
-
-      const query: UsersQueryInput = { first: 10, includeDeleted: true };
-      const result = await authService.getUsers(query);
-
-      expect(result.users[0].deletedAt).toBeInstanceOf(Date);
-    });
-
-    it('should set hasPreviousPage correctly when after cursor is provided', async () => {
-      mockPrismaService.user.count.mockResolvedValue(3);
-      mockPrismaService.user.findFirst.mockResolvedValueOnce({
-        id: 'user-uuid-3',
-        username: 'user3',
-        name: 'User Three',
-        bio: null,
-        deletedAt: null,
-        createdAt: new Date('2026-01-03T00:00:00Z'),
-        updatedAt: new Date('2026-01-03T00:00:00Z'),
-      });
-      mockPrismaService.user.findFirst.mockResolvedValueOnce({
-        id: 'user-uuid-0',
-        username: 'user0',
-        name: 'User Zero',
-        bio: null,
-        deletedAt: null,
-        createdAt: new Date('2025-12-31T00:00:00Z'),
-        updatedAt: new Date('2025-12-31T00:00:00Z'),
-      });
-      mockPrismaService.user.findMany.mockResolvedValue(mockUsers);
-
-      const afterCursor = Buffer.from(
-        new Date('2026-01-01T00:00:00Z').toISOString(),
-      ).toString('base64');
-
-      const query: UsersQueryInput = { first: 2, after: afterCursor };
-      const result = await authService.getUsers(query);
-
-      expect(result.pageInfo.hasPreviousPage).toBe(true);
-    });
-
-    it('should set hasNextPage correctly in backward pagination', async () => {
-      mockPrismaService.user.count.mockResolvedValue(3);
-      mockPrismaService.user.findFirst.mockResolvedValueOnce({
-        id: 'user-uuid-1',
-        username: 'user1',
-        name: 'User One',
-        bio: null,
-        deletedAt: null,
-        createdAt: new Date('2026-01-01T00:00:00Z'),
-        updatedAt: new Date('2026-01-01T00:00:00Z'),
-      });
-      mockPrismaService.user.findMany.mockResolvedValue([
-        mockUsers[0],
-        mockUsers[1],
-      ]);
-
-      const beforeCursor = Buffer.from(
-        new Date('2026-01-03T00:00:00Z').toISOString(),
-      ).toString('base64');
-
-      const query: UsersQueryInput = { last: 2, before: beforeCursor };
-      const result = await authService.getUsers(query);
-
-      expect(result.pageInfo.hasNextPage).toBe(true);
-    });
-
-    it('should handle last parameter without before cursor', async () => {
-      mockPrismaService.user.count.mockResolvedValue(2);
-      mockPrismaService.user.findMany.mockResolvedValue(
-        [...mockUsers].reverse(),
-      );
-
-      const query: UsersQueryInput = { last: 10 };
-      const result = await authService.getUsers(query);
-
-      expect(result.users.length).toBe(2);
-      expect(result.pageInfo.startCursor).toBeDefined();
-      expect(result.pageInfo.endCursor).toBeDefined();
+    it('throws when orderBy.field is unsupported', async () => {
+      await expect(
+        authService.getUsers({
+          orderBy: {
+            field: 'unsupportedField',
+            direction: SortDirection.ASC,
+          },
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

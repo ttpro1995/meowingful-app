@@ -182,7 +182,9 @@ export class AuthResolver {
   }
 
   @Query(() => UsersPayload)
-  async users(@Args('query') query: UsersQueryInput) {
-    return this.authService.getUsers(query);
+  async users(
+    @Args('query', { nullable: true }) query?: UsersQueryInput,
+  ): Promise<UsersPayload> {
+    return this.authService.getUsers(query ?? {});
   }
 }

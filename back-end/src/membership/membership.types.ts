@@ -1,13 +1,26 @@
 import { Field, InputType, Int, ObjectType } from '@nestjs/graphql';
+import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEmail,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  ValidateNested,
 } from 'class-validator';
+import {
+  DateFilter,
+  EnumFilter,
+  StringFilter,
+} from '../shared/pagination/filter.types';
+import {
+  OrderByArgs,
+  PaginationArgs,
+} from '../shared/pagination/pagination.args';
+import { PaginatedResult } from '../shared/pagination/paginated-result.type';
 
 @ObjectType()
 export class Invitation {
@@ -87,28 +100,48 @@ export class TenantMember {
   roles: MemberRole[];
 }
 
-@ObjectType('MembersPageInfo')
-export class MembersPageInfo {
-  @Field(() => String, { nullable: true })
-  startCursor?: string;
+@InputType()
+export class MembersFilterInput {
+  @Field(() => StringFilter, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => StringFilter)
+  username?: StringFilter;
 
-  @Field(() => String, { nullable: true })
-  endCursor?: string;
+  @Field(() => StringFilter, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => StringFilter)
+  name?: StringFilter;
 
-  @Field(() => Boolean)
-  hasNextPage: boolean;
+  @Field(() => StringFilter, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => StringFilter)
+  email?: StringFilter;
 
-  @Field(() => Boolean)
-  hasPreviousPage: boolean;
+  @Field(() => DateFilter, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DateFilter)
+  createdAt?: DateFilter;
+
+  @Field(() => EnumFilter, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => EnumFilter)
+  roleName?: EnumFilter;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean({ message: 'includeDeleted must be a boolean' })
+  includeDeleted?: boolean;
 }
 
-@ObjectType()
-export class MembersPayload {
+@ObjectType('PaginatedMembers')
+export class MembersPayload extends PaginatedResult(TenantMember) {
   @Field(() => [TenantMember])
   members: TenantMember[];
-
-  @Field(() => MembersPageInfo)
-  pageInfo: MembersPageInfo;
 
   @Field(() => Int)
   totalCount: number;
@@ -179,27 +212,61 @@ export class UpdateMemberRolesInput {
 
 @InputType()
 export class MembersQueryInput {
-  @Field(() => Int, { nullable: true })
+  @Field(() => PaginationArgs, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PaginationArgs)
+  pagination?: PaginationArgs;
+
+  @Field(() => OrderByArgs, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => OrderByArgs)
+  orderBy?: OrderByArgs;
+
+  @Field(() => MembersFilterInput, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MembersFilterInput)
+  filter?: MembersFilterInput;
+
   @IsOptional()
   @IsInt({ message: 'first must be a number' })
+  @Field(() => Int, {
+    nullable: true,
+    deprecationReason: 'Use pagination.limit instead',
+  })
   first?: number;
 
-  @Field(() => Int, { nullable: true })
   @IsOptional()
   @IsInt({ message: 'last must be a number' })
+  @Field(() => Int, {
+    nullable: true,
+    deprecationReason: 'Use pagination.limit instead',
+  })
   last?: number;
 
-  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString({ message: 'after must be a string' })
+  @Field(() => String, {
+    nullable: true,
+    deprecationReason: 'Cursor pagination is deprecated; use pagination.page',
+  })
   after?: string;
 
-  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString({ message: 'before must be a string' })
+  @Field(() => String, {
+    nullable: true,
+    deprecationReason: 'Cursor pagination is deprecated; use pagination.page',
+  })
   before?: string;
 
-  @Field(() => Boolean, { nullable: true })
   @IsOptional()
+  @IsBoolean({ message: 'includeDeleted must be a boolean' })
+  @Field(() => Boolean, {
+    nullable: true,
+    deprecationReason: 'Use filter.includeDeleted instead',
+  })
   includeDeleted?: boolean;
 }

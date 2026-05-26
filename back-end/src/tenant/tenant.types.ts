@@ -1,4 +1,5 @@
 import { Field, InputType, Int, ObjectType } from '@nestjs/graphql';
+import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEmail,
@@ -7,7 +8,14 @@ import {
   IsString,
   Matches,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
+import { DateFilter, StringFilter } from '../shared/pagination/filter.types';
+import {
+  OrderByArgs,
+  PaginationArgs,
+} from '../shared/pagination/pagination.args';
+import { PaginatedResult } from '../shared/pagination/paginated-result.type';
 
 @ObjectType()
 export class Tenant {
@@ -45,13 +53,72 @@ export class TenantListItem extends Tenant {
   activeCourses: number;
 }
 
-@ObjectType()
-export class TenantsPayload {
+@InputType()
+export class TenantsFilterInput {
+  @Field(() => StringFilter, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => StringFilter)
+  name?: StringFilter;
+
+  @Field(() => StringFilter, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => StringFilter)
+  slug?: StringFilter;
+
+  @Field(() => StringFilter, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => StringFilter)
+  planTier?: StringFilter;
+
+  @Field(() => StringFilter, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => StringFilter)
+  contactEmail?: StringFilter;
+
+  @Field(() => DateFilter, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DateFilter)
+  createdAt?: DateFilter;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean({ message: 'isActive must be a boolean' })
+  isActive?: boolean;
+}
+
+@ObjectType('PaginatedTenants')
+export class TenantsPayload extends PaginatedResult(TenantListItem) {
   @Field(() => [TenantListItem])
   tenants: TenantListItem[];
 
   @Field(() => Int)
   totalCount: number;
+}
+
+@InputType()
+export class TenantsQueryInput {
+  @Field(() => PaginationArgs, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PaginationArgs)
+  pagination?: PaginationArgs;
+
+  @Field(() => OrderByArgs, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => OrderByArgs)
+  orderBy?: OrderByArgs;
+
+  @Field(() => TenantsFilterInput, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TenantsFilterInput)
+  filter?: TenantsFilterInput;
 }
 
 @InputType()

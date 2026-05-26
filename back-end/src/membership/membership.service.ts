@@ -5,7 +5,7 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Prisma, UserRole } from '@prisma/client';
+import { Prisma, RoleName, UserRole } from '@prisma/client';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { createHash, randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,7 +16,7 @@ import {
   DeclineInvitationInput,
   InviteMemberInput,
   InviteMemberPayload,
-  MembersPageInfo,
+  MembersFilterInput,
   MembersPayload,
   MembersQueryInput,
   MyTenantsPayload,
@@ -24,6 +24,13 @@ import {
   TenantMembership,
   UpdateMemberRolesInput,
 } from './membership.types';
+import {
+  DateFilter,
+  EnumFilter,
+  StringFilter,
+} from '../shared/pagination/filter.types';
+import { SortDirection } from '../shared/pagination/pagination.args';
+import { paginate } from '../shared/pagination/paginate';
 
 interface InvitationTokenPayload extends JwtPayload {
   sub: string;
@@ -62,6 +69,13 @@ interface UserWithRoles {
 export class MembershipService {
   private readonly logger = new Logger(MembershipService.name);
   private readonly invitationTtlSeconds = 72 * 60 * 60;
+  private readonly memberSortableFields = new Set([
+    'createdAt',
+    'updatedAt',
+    'username',
+    'name',
+    'email',
+  ]);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -328,140 +342,216 @@ export class MembershipService {
     return true;
   }
 
-  async members(query: MembersQueryInput = {}): Promise<MembersPayload> {
-    const context = await this.assertTenantAdminAccess();
-    const { first, last, after, before, includeDeleted = false } = query;
+  private toStringFilter(
+    filter?: StringFilter,
+  ): Prisma.StringFilter | undefined {
+    if (!filter) {
+      return undefined;
+    }
 
-    const isForward = first !== undefined || (!last && !before);
-    const take = first ?? last ?? 20;
+    const where: Prisma.StringFilter = {
+      mode: 'insensitive',
+    };
 
-    const whereClause: Prisma.UserWhereInput = {
+    if (filter.equals) {
+      where.equals = filter.equals;
+    }
+
+    if (filter.contains) {
+      where.contains = filter.contains;
+    }
+
+    if (filter.startsWith) {
+      where.startsWith = filter.startsWith;
+    }
+
+    if (filter.endsWith) {
+      where.endsWith = filter.endsWith;
+    }
+
+    if (filter.in && filter.in.length > 0) {
+      where.in = filter.in;
+    }
+
+    return Object.keys(where).length > 1 ? where : undefined;
+  }
+
+  private toDateFilter(filter?: DateFilter): Prisma.DateTimeFilter | undefined {
+    if (!filter) {
+      return undefined;
+    }
+
+    const where: Prisma.DateTimeFilter = {};
+
+    if (filter.equals) {
+      where.equals = new Date(filter.equals);
+    }
+
+    if (filter.gt) {
+      where.gt = new Date(filter.gt);
+    }
+
+    if (filter.gte) {
+      where.gte = new Date(filter.gte);
+    }
+
+    if (filter.lt) {
+      where.lt = new Date(filter.lt);
+    }
+
+    if (filter.lte) {
+      where.lte = new Date(filter.lte);
+    }
+
+    return Object.keys(where).length > 0 ? where : undefined;
+  }
+
+  private parseRoleName(value: string): RoleName {
+    const parsed = Object.values(RoleName).find((role) => role === value);
+    if (!parsed) {
+      throw new BadRequestException(`Invalid role filter value: ${value}`);
+    }
+
+    return parsed;
+  }
+
+  private toRoleNameFilter(
+    filter?: EnumFilter,
+  ): Prisma.EnumRoleNameFilter | undefined {
+    if (!filter) {
+      return undefined;
+    }
+
+    const where: Prisma.EnumRoleNameFilter = {};
+
+    if (filter.equals) {
+      where.equals = this.parseRoleName(filter.equals);
+    }
+
+    if (filter.in && filter.in.length > 0) {
+      where.in = filter.in.map((value) => this.parseRoleName(value));
+    }
+
+    return Object.keys(where).length > 0 ? where : undefined;
+  }
+
+  private buildMembersWhereInput(
+    tenantId: string,
+    filter: MembersFilterInput | undefined,
+    includeDeleted: boolean,
+  ): Prisma.UserWhereInput {
+    const where: Prisma.UserWhereInput = {
       userRoles: {
         some: {
-          tenantId: context.tenantId,
+          tenantId,
         },
       },
       ...(includeDeleted ? {} : { deletedAt: null }),
     };
 
-    const cursorConditions: Prisma.UserWhereInput[] = [];
-
-    if (after) {
-      const decodedAfter = Buffer.from(after, 'base64').toString('utf-8');
-      if (isForward) {
-        cursorConditions.push({ createdAt: { gt: new Date(decodedAfter) } });
-      } else {
-        cursorConditions.push({ createdAt: { lt: new Date(decodedAfter) } });
-      }
+    const usernameFilter = this.toStringFilter(filter?.username);
+    if (usernameFilter) {
+      where.username = usernameFilter;
     }
 
-    if (before) {
-      const decodedBefore = Buffer.from(before, 'base64').toString('utf-8');
-      if (isForward) {
-        cursorConditions.push({ createdAt: { lt: new Date(decodedBefore) } });
-      } else {
-        cursorConditions.push({ createdAt: { gt: new Date(decodedBefore) } });
-      }
+    const nameFilter = this.toStringFilter(filter?.name);
+    if (nameFilter) {
+      where.name = nameFilter;
     }
 
-    const cursorWhere: Prisma.UserWhereInput =
-      cursorConditions.length > 0
-        ? { AND: [whereClause, ...cursorConditions] }
-        : whereClause;
+    const emailFilter = this.toStringFilter(filter?.email);
+    if (emailFilter) {
+      where.email = emailFilter;
+    }
 
-    const totalCount = await this.prisma.user.count({
-      where: {
-        userRoles: {
-          some: {
-            tenantId: context.tenantId,
+    const createdAtFilter = this.toDateFilter(filter?.createdAt);
+    if (createdAtFilter) {
+      where.createdAt = createdAtFilter;
+    }
+
+    const roleNameFilter = this.toRoleNameFilter(filter?.roleName);
+    if (roleNameFilter) {
+      where.AND = [
+        {
+          userRoles: {
+            some: {
+              tenantId,
+              role: {
+                name: roleNameFilter,
+              },
+            },
           },
         },
-        deletedAt: null,
-      },
-    });
+      ];
+    }
+
+    return where;
+  }
+
+  private resolveMembersOrderBy(
+    orderField: string | undefined,
+    direction: SortDirection | undefined,
+  ): Prisma.UserOrderByWithRelationInput {
+    const field = orderField ?? 'createdAt';
+    if (!this.memberSortableFields.has(field)) {
+      throw new BadRequestException(`Unsupported orderBy.field: ${field}`);
+    }
+
+    const prismaDirection: Prisma.SortOrder =
+      direction === SortDirection.DESC ? 'desc' : 'asc';
+
+    return {
+      [field]: prismaDirection,
+    };
+  }
+
+  async members(query: MembersQueryInput = {}): Promise<MembersPayload> {
+    const context = await this.assertTenantAdminAccess();
+    const requestedLimit =
+      query.pagination?.limit ?? query.first ?? query.last ?? undefined;
+    const requestedPage = query.pagination?.page ?? 1;
+    const { page, limit, skip, take } = paginate(requestedPage, requestedLimit);
+
+    const includeDeleted =
+      query.filter?.includeDeleted ?? query.includeDeleted ?? false;
+    const where = this.buildMembersWhereInput(
+      context.tenantId,
+      query.filter,
+      includeDeleted,
+    );
+
+    const orderBy = this.resolveMembersOrderBy(
+      query.orderBy?.field,
+      query.orderBy?.direction,
+    );
+
+    const totalCount = await this.prisma.user.count({ where });
 
     const users = await this.prisma.user.findMany({
-      where: cursorWhere,
+      where,
       include: {
         userRoles: {
           where: { tenantId: context.tenantId },
           include: { role: true },
         },
       },
-      orderBy: { createdAt: isForward ? 'asc' : 'desc' },
-      take: isForward ? take : -take,
+      orderBy,
+      skip,
+      take,
     });
 
-    const orderedUsers = isForward ? users : [...users].reverse();
-
-    const pageInfo: MembersPageInfo = {
-      hasNextPage: false,
-      hasPreviousPage: false,
-      startCursor: undefined,
-      endCursor: undefined,
-    };
-
-    if (orderedUsers.length > 0) {
-      pageInfo.startCursor = Buffer.from(
-        orderedUsers[0].createdAt.toISOString(),
-      ).toString('base64');
-      pageInfo.endCursor = Buffer.from(
-        orderedUsers[orderedUsers.length - 1].createdAt.toISOString(),
-      ).toString('base64');
-
-      if (isForward) {
-        const nextUser = await this.prisma.user.findFirst({
-          where: {
-            ...whereClause,
-            createdAt: { gt: orderedUsers[orderedUsers.length - 1].createdAt },
-          },
-          orderBy: { createdAt: 'asc' },
-        });
-        pageInfo.hasNextPage = !!nextUser;
-
-        if (after) {
-          const prevUser = await this.prisma.user.findFirst({
-            where: {
-              ...whereClause,
-              createdAt: {
-                lt: new Date(Buffer.from(after, 'base64').toString('utf-8')),
-              },
-            },
-            orderBy: { createdAt: 'desc' },
-          });
-          pageInfo.hasPreviousPage = !!prevUser;
-        }
-      } else {
-        const prevUser = await this.prisma.user.findFirst({
-          where: {
-            ...whereClause,
-            createdAt: { lt: orderedUsers[0].createdAt },
-          },
-          orderBy: { createdAt: 'desc' },
-        });
-        pageInfo.hasPreviousPage = !!prevUser;
-
-        if (before) {
-          const nextUser = await this.prisma.user.findFirst({
-            where: {
-              ...whereClause,
-              createdAt: {
-                gt: new Date(Buffer.from(before, 'base64').toString('utf-8')),
-              },
-            },
-            orderBy: { createdAt: 'asc' },
-          });
-          pageInfo.hasNextPage = !!nextUser;
-        }
-      }
-    }
+    const data = users.map((user) => this.mapMember(user as UserWithRoles));
 
     return {
-      members: orderedUsers.map((user) =>
-        this.mapMember(user as UserWithRoles),
-      ),
-      pageInfo,
+      data,
+      members: data,
       totalCount,
+      pageInfo: {
+        total: totalCount,
+        page,
+        limit,
+        totalPages: totalCount === 0 ? 0 : Math.ceil(totalCount / limit),
+      },
     };
   }
 

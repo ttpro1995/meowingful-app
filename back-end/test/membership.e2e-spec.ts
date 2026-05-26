@@ -205,7 +205,10 @@ describe('Membership (e2e)', () => {
     return body.data?.login.accessToken ?? '';
   }
 
-  async function ensurePermission(code: string, description: string): Promise<void> {
+  async function ensurePermission(
+    code: string,
+    description: string,
+  ): Promise<void> {
     await prismaService.permission.upsert({
       where: { code },
       update: { description },
@@ -216,7 +219,9 @@ describe('Membership (e2e)', () => {
     });
   }
 
-  async function seedTenantRoles(tenantId: string): Promise<Record<RoleName, { id: string }>> {
+  async function seedTenantRoles(
+    tenantId: string,
+  ): Promise<Record<RoleName, { id: string }>> {
     const seeded: Partial<Record<RoleName, { id: string }>> = {};
 
     for (const roleName of Object.keys(rolePermissions) as RoleName[]) {
@@ -412,7 +417,8 @@ describe('Membership (e2e)', () => {
     });
 
     expect(myTenantsBody.errors).toBeUndefined();
-    const tenantIds = myTenantsBody.data?.myTenants.memberships.map((m) => m.tenantId) ?? [];
+    const tenantIds =
+      myTenantsBody.data?.myTenants.memberships.map((m) => m.tenantId) ?? [];
     expect(tenantIds).toContain(tenantA.id);
     expect(tenantIds).toContain(tenantB.id);
 
@@ -459,8 +465,12 @@ describe('Membership (e2e)', () => {
     });
 
     expect(permissionsBeforeUpdate.errors).toBeUndefined();
-    expect(permissionsBeforeUpdate.data?.myPermissions).toContain('lead:create');
-    expect(permissionsBeforeUpdate.data?.myPermissions).not.toContain('lead:delete');
+    expect(permissionsBeforeUpdate.data?.myPermissions).toContain(
+      'lead:create',
+    );
+    expect(permissionsBeforeUpdate.data?.myPermissions).not.toContain(
+      'lead:delete',
+    );
 
     const invitedUserLookup = await executeGraphQL<{
       getUser: {
@@ -562,7 +572,9 @@ describe('Membership (e2e)', () => {
     });
 
     expect(nextRequestAfterRemoval.errors).toBeDefined();
-    expect(nextRequestAfterRemoval.errors?.[0].message).toContain('UNAUTHORIZED');
+    expect(nextRequestAfterRemoval.errors?.[0].message).toContain(
+      'UNAUTHORIZED',
+    );
 
     const switchAfterRemoval = await executeGraphQL<{
       switchTenant: null;
