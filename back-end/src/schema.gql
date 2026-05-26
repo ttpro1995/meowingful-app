@@ -23,6 +23,14 @@ input CreateTenantInput {
   slug: String!
 }
 
+input DateFilter {
+  equals: String
+  gt: String
+  gte: String
+  lt: String
+  lte: String
+}
+
 """
 A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
 """
@@ -30,6 +38,11 @@ scalar DateTime
 
 input DeclineInvitationInput {
   token: String!
+}
+
+input EnumFilter {
+  equals: String
+  in: [String!]
 }
 
 type Invitation {
@@ -68,25 +81,24 @@ type MemberRole {
   roleName: String!
 }
 
-type MembersPageInfo {
-  endCursor: String
-  hasNextPage: Boolean!
-  hasPreviousPage: Boolean!
-  startCursor: String
-}
-
-type MembersPayload {
-  members: [TenantMember!]!
-  pageInfo: MembersPageInfo!
-  totalCount: Int!
+input MembersFilterInput {
+  createdAt: DateFilter
+  email: StringFilter
+  includeDeleted: Boolean
+  name: StringFilter
+  roleName: EnumFilter
+  username: StringFilter
 }
 
 input MembersQueryInput {
-  after: String
-  before: String
-  first: Int
-  includeDeleted: Boolean
-  last: Int
+  after: String @deprecated(reason: "Cursor pagination is deprecated; use pagination.page")
+  before: String @deprecated(reason: "Cursor pagination is deprecated; use pagination.page")
+  filter: MembersFilterInput
+  first: Int @deprecated(reason: "Use pagination.limit instead")
+  includeDeleted: Boolean @deprecated(reason: "Use filter.includeDeleted instead")
+  last: Int @deprecated(reason: "Use pagination.limit instead")
+  orderBy: OrderByArgs
+  pagination: PaginationArgs
 }
 
 type Mutation {
@@ -114,23 +126,54 @@ type MyTenantsPayload {
   memberships: [TenantMembership!]!
 }
 
+input OrderByArgs {
+  direction: SortDirection! = ASC
+  field: String!
+}
+
 type PageInfo {
-  endCursor: String
-  hasNextPage: Boolean!
-  hasPreviousPage: Boolean!
-  startCursor: String
+  limit: Int!
+  page: Int!
+  total: Int!
+  totalPages: Int!
+}
+
+type PaginatedMembers {
+  data: [TenantMember!]!
+  members: [TenantMember!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type PaginatedTenants {
+  data: [TenantListItem!]!
+  pageInfo: PageInfo!
+  tenants: [TenantListItem!]!
+  totalCount: Int!
+}
+
+type PaginatedUsers {
+  data: [User!]!
+  pageInfo: PageInfo!
+  totalCount: Int! @deprecated(reason: "Use pageInfo.total instead")
+  users: [User!]! @deprecated(reason: "Use data instead")
+}
+
+input PaginationArgs {
+  limit: Int! = 20
+  page: Int! = 1
 }
 
 type Query {
   getMe(userId: String!): MePayload!
   getUser(userId: String!): User!
-  members(query: MembersQueryInput): MembersPayload!
+  members(query: MembersQueryInput): PaginatedMembers!
   myPermissions: [String!]!
   myTenant: Tenant!
   myTenants: MyTenantsPayload!
   rolePermissions(tenantId: String!): [RolePermissionsMatrix!]!
-  tenants: TenantsPayload!
-  users(query: UsersQueryInput!): UsersPayload!
+  tenants(query: TenantsQueryInput): PaginatedTenants!
+  users(query: UsersQueryInput): PaginatedUsers!
 }
 
 input RegisterInput {
@@ -156,6 +199,19 @@ enum RoleName {
 type RolePermissionsMatrix {
   permissions: [String!]!
   roleName: RoleName!
+}
+
+enum SortDirection {
+  ASC
+  DESC
+}
+
+input StringFilter {
+  contains: String
+  endsWith: String
+  equals: String
+  in: [String!]
+  startsWith: String
 }
 
 type Tenant {
@@ -202,9 +258,19 @@ type TenantMembership {
   tenantSlug: String!
 }
 
-type TenantsPayload {
-  tenants: [TenantListItem!]!
-  totalCount: Int!
+input TenantsFilterInput {
+  contactEmail: StringFilter
+  createdAt: DateFilter
+  isActive: Boolean
+  name: StringFilter
+  planTier: StringFilter
+  slug: StringFilter
+}
+
+input TenantsQueryInput {
+  filter: TenantsFilterInput
+  orderBy: OrderByArgs
+  pagination: PaginationArgs
 }
 
 input UpdateMemberRolesInput {
@@ -244,22 +310,34 @@ type User {
   username: String!
 }
 
+type UserError {
+  code: String!
+  field: String
+  message: String!
+}
+
 enum UserRole {
   SUPER_ADMIN
   TENANT_ADMIN
   USER
 }
 
-type UsersPayload {
-  pageInfo: PageInfo!
-  totalCount: Int!
-  users: [User!]!
+input UsersFilterInput {
+  createdAt: DateFilter
+  email: StringFilter
+  includeDeleted: Boolean
+  name: StringFilter
+  role: EnumFilter
+  username: StringFilter
 }
 
 input UsersQueryInput {
-  after: String
-  before: String
-  first: Int
-  includeDeleted: Boolean
-  last: Int
+  after: String @deprecated(reason: "Cursor pagination is deprecated; use pagination.page")
+  before: String @deprecated(reason: "Cursor pagination is deprecated; use pagination.page")
+  filter: UsersFilterInput
+  first: Int @deprecated(reason: "Use pagination.limit instead")
+  includeDeleted: Boolean @deprecated(reason: "Use filter.includeDeleted instead")
+  last: Int @deprecated(reason: "Use pagination.limit instead")
+  orderBy: OrderByArgs
+  pagination: PaginationArgs
 }

@@ -198,6 +198,29 @@ describe('TenantManagement (e2e)', () => {
         `,
         variables: {
           input: {
+            username: `${sharedUsername}2`,
+            password: 'password123',
+            name: 'Tenant A User 2',
+            tenantSlug: tenantA.slug,
+          },
+        },
+      })
+      .expect(200);
+
+    await request(app.getHttpServer() as Parameters<typeof request>[0])
+      .post('/graphql')
+      .send({
+        query: `
+          mutation Register($input: RegisterInput!) {
+            register(input: $input) {
+              user {
+                id
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
             username: sharedUsername,
             password: 'password123',
             name: 'Tenant B User',
@@ -242,11 +265,22 @@ describe('TenantManagement (e2e)', () => {
       .send({
         query: `
           query Users {
-            users(query: { first: 50 }) {
-              users {
+            users(
+              query: {
+                pagination: { page: 2, limit: 1 }
+                orderBy: { field: "createdAt", direction: ASC }
+              }
+            ) {
+              data {
                 id
                 tenantId
                 username
+              }
+              pageInfo {
+                total
+                page
+                limit
+                totalPages
               }
             }
           }
@@ -256,14 +290,26 @@ describe('TenantManagement (e2e)', () => {
       .expect((res: request.Response) => {
         const body = res.body as GraphQLResponse<{
           users: {
-            users: Array<{ id: string; tenantId: string; username: string }>;
+            data: Array<{ id: string; tenantId: string; username: string }>;
+            pageInfo: {
+              total: number;
+              page: number;
+              limit: number;
+              totalPages: number;
+            };
           };
         }>;
 
         expect(body.errors).toBeUndefined();
-        const users = body.data?.users.users ?? [];
-        expect(users.length).toBeGreaterThan(0);
+        const users = body.data?.users.data ?? [];
+        const pageInfo = body.data?.users.pageInfo;
+
+        expect(users.length).toBe(1);
         expect(users.every((u) => u.tenantId === tenantA.id)).toBe(true);
+        expect(pageInfo?.page).toBe(2);
+        expect(pageInfo?.limit).toBe(1);
+        expect(pageInfo?.total).toBeGreaterThanOrEqual(2);
+        expect(pageInfo?.totalPages).toBeGreaterThanOrEqual(2);
       });
   });
 

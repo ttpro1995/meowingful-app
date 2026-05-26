@@ -15,6 +15,8 @@ import { MetricsModule } from './metrics/metrics.module';
 import { TenantModule } from './tenant/tenant.module';
 import { RbacModule } from './rbac/rbac.module';
 import { MembershipModule } from './membership/membership.module';
+import { formatGraphQLError } from './shared/errors/error-format.plugin';
+import { UserError } from './shared/errors/user-error.type';
 
 @Module({
   imports: [
@@ -24,6 +26,10 @@ import { MembershipModule } from './membership/membership.module';
       driver: ApolloDriver,
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
       sortSchema: true,
+      buildSchemaOptions: {
+        orphanedTypes: [UserError],
+      },
+      formatError: formatGraphQLError,
       context: ({ req, res }: { req: Request; res: Response }) => ({
         req,
         res,

@@ -7,7 +7,18 @@ import { PrismaService } from './../src/prisma/prisma.service';
 
 interface GraphQLResponse<T = Record<string, unknown>> {
   data?: T;
-  errors?: Array<{ message: string }>;
+  errors?: Array<{
+    message: string;
+    extensions?: {
+      code?: string;
+      field?: string;
+      errors?: Array<{
+        code: string;
+        message: string;
+        field?: string;
+      }>;
+    };
+  }>;
 }
 
 describe('AuthResolver (e2e)', () => {
@@ -107,6 +118,82 @@ describe('AuthResolver (e2e)', () => {
           const body = res.body as GraphQLResponse<{ register: null }>;
           expect(body.errors).toBeDefined();
           expect(body.errors?.[0].message).toContain('Username already exists');
+        });
+    });
+
+    it('should return standardized field-level validation errors', () => {
+      const username = `validationuser${Date.now()}`;
+
+      return request(app.getHttpServer() as Parameters<typeof request>[0])
+        .post('/graphql')
+        .send({
+          query: `
+            mutation Register($input: RegisterInput!) {
+              register(input: $input) {
+                accessToken
+                user {
+                  id
+                }
+              }
+            }
+          `,
+          variables: {
+            input: {
+              username,
+              password: 'password123',
+              name: 'Validation Test User',
+            },
+          },
+        })
+        .expect(200)
+        .then((registerRes) => {
+          const registerBody = registerRes.body as GraphQLResponse<{
+            register: {
+              accessToken: string;
+              user: {
+                id: string;
+              };
+            };
+          }>;
+
+          const accessToken = registerBody.data?.register.accessToken;
+          const userId = registerBody.data?.register.user.id;
+          expect(accessToken).toBeDefined();
+          expect(userId).toBeDefined();
+
+          return request(app.getHttpServer() as Parameters<typeof request>[0])
+            .post('/graphql')
+            .set('Authorization', `Bearer ${accessToken ?? ''}`)
+            .send({
+              query: `
+                mutation UpdateUserProfile($userId: String!, $input: UpdateUserProfileInput!) {
+                  updateUserProfile(userId: $userId, input: $input) {
+                    id
+                  }
+                }
+              `,
+              variables: {
+                userId,
+                input: {
+                  email: 'not-an-email',
+                },
+              },
+            })
+            .expect(200)
+            .expect((res: request.Response) => {
+              const body = res.body as GraphQLResponse<{
+                updateUserProfile: null;
+              }>;
+              expect(body.errors).toBeDefined();
+
+              const firstError = body.errors?.[0];
+              expect(firstError?.extensions?.code).toBe('VALIDATION_ERROR');
+
+              const userErrors = firstError?.extensions?.errors ?? [];
+              expect(userErrors.length).toBeGreaterThan(0);
+              expect(userErrors[0].code).toBe('VALIDATION_ERROR');
+              expect(userErrors[0].field).toBe('email');
+            });
         });
     });
   });

@@ -16,6 +16,7 @@ describe('TenantService', () => {
       update: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn(),
     },
     user: {
       count: jest.fn(),
@@ -101,10 +102,13 @@ describe('TenantService', () => {
       .fn()
       .mockResolvedValueOnce(2)
       .mockResolvedValueOnce(5);
+    mockPrismaService.tenant.count = jest.fn().mockResolvedValue(2);
 
     const result = await service.tenants();
 
     expect(result.totalCount).toBe(2);
+    expect(result.pageInfo.total).toBe(2);
+    expect(result.data.length).toBe(2);
     expect(result.tenants[0].userCount).toBe(2);
     expect(result.tenants[1].userCount).toBe(5);
   });

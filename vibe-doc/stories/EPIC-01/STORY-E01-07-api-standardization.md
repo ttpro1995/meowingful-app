@@ -4,7 +4,7 @@
 - **Story ID**: STORY-E01-07
 - **Epic**: EPIC-01 — Foundation & Infrastructure Enhancement
 - **Priority**: Medium
-- **Status**: Todo
+- **Status**: Done
 - **Created**: 2026-05-09
 - **Related**: vibe-doc/epic-plan.md, vibe-doc/architecture.md
 
@@ -17,23 +17,23 @@ The MVP has only a handful of queries and no list endpoints yet. Before CRM lead
 ## Requirements
 
 ### Functional Requirements
-- [ ] All list GraphQL queries accept `pagination: { page, limit }` and return `PaginatedResult<T>`
-- [ ] All list queries accept an `orderBy: { field, direction }` argument
-- [ ] Common filter types established: `StringFilter`, `DateFilter`, `EnumFilter`
-- [ ] All GraphQL errors follow a standard `UserError` shape (code, message, field)
-- [ ] Validation errors return field-level `UserError` list instead of generic 400
-- [ ] Unhandled exceptions return a generic `INTERNAL_ERROR` code without leaking stack traces in production
+- [x] All list GraphQL queries accept `pagination: { page, limit }` and return `PaginatedResult<T>`
+- [x] All list queries accept an `orderBy: { field, direction }` argument
+- [x] Common filter types established: `StringFilter`, `DateFilter`, `EnumFilter`
+- [x] All GraphQL errors follow a standard `UserError` shape (code, message, field)
+- [x] Validation errors return field-level `UserError` list instead of generic 400
+- [x] Unhandled exceptions return a generic `INTERNAL_ERROR` code without leaking stack traces in production
 
 ### Non-Functional Requirements
-- [ ] Max `limit` enforced at 100 to prevent unbounded queries
-- [ ] Default `limit` is 20
-- [ ] Pagination metadata included: `{ total, page, limit, totalPages }`
+- [x] Max `limit` enforced at 100 to prevent unbounded queries
+- [x] Default `limit` is 20
+- [x] Pagination metadata included: `{ total, page, limit, totalPages }`
 
 ## Acceptance Criteria
-- [ ] A list query with `pagination: { page: 2, limit: 10 }` returns the correct slice and metadata
-- [ ] Submitting invalid input to a mutation returns `{ errors: [{ code: "VALIDATION_ERROR", field: "email", message: "..." }] }`
-- [ ] An unhandled exception in production returns `{ errors: [{ code: "INTERNAL_ERROR", message: "Something went wrong" }] }` — no stack trace
-- [ ] Requesting `limit: 200` is clamped or rejected with a clear error
+- [x] A list query with `pagination: { page: 2, limit: 10 }` returns the correct slice and metadata
+- [x] Submitting invalid input to a mutation returns `{ errors: [{ code: "VALIDATION_ERROR", field: "email", message: "..." }] }`
+- [x] An unhandled exception in production returns `{ errors: [{ code: "INTERNAL_ERROR", message: "Something went wrong" }] }` — no stack trace
+- [x] Requesting `limit: 200` is clamped or rejected with a clear error
 
 ## Technical Specifications
 
@@ -115,13 +115,42 @@ function paginate(page: number, limit: number) {
 ## Testing Strategy
 
 ### Unit Tests
-- [ ] `paginate(2, 10)` returns `{ skip: 10, take: 10 }`
-- [ ] `paginate(1, 200)` clamps to `{ skip: 0, take: 100 }`
-- [ ] `ErrorFormatPlugin` maps `ValidationError` to `UserError[]` with field names
+- [x] `paginate(2, 10)` returns `{ skip: 10, take: 10 }`
+- [x] `paginate(1, 200)` clamps to `{ skip: 0, take: 100 }`
+- [x] `ErrorFormatPlugin` maps `ValidationError` to `UserError[]` with field names
 
 ### Integration Tests
-- [ ] List query with pagination returns correct `pageInfo` values
-- [ ] Invalid mutation input returns `UserError` with `field` set
+- [x] List query with pagination returns correct `pageInfo` values
+- [x] Invalid mutation input returns `UserError` with `field` set
+
+## Implementation Notes (2026-05-26)
+
+### Completed Work
+- Added shared pagination infrastructure in `back-end/src/shared/pagination/`:
+  - `pagination.args.ts` (`PaginationArgs`, `OrderByArgs`, `SortDirection`)
+  - `filter.types.ts` (`StringFilter`, `DateFilter`, `EnumFilter`)
+  - `page-info.type.ts` (`{ total, page, limit, totalPages }`)
+  - `paginated-result.type.ts` generic payload builder
+  - `paginate.ts` helper with default `limit=20` and clamp to `100`
+- Added shared error infrastructure in `back-end/src/shared/errors/`:
+  - `user-error.type.ts`
+  - `error-format.plugin.ts` (GraphQL format hook for standardized error payloads)
+- Registered standardized error formatting in `back-end/src/app.module.ts` and enabled global validation in `back-end/src/main.ts`.
+- Migrated list contracts to standardized query arguments and paginated results:
+  - `AuthService.users`
+  - `TenantService.tenants`
+  - `MembershipService.members`
+- Updated/added tests for pagination and error formatting.
+- Documented the pattern in `vibe-doc/development-guide.md`.
+
+### Verification
+- Unit tests passed:
+  - `npm test -- src/shared/pagination/paginate.spec.ts src/shared/errors/error-format.plugin.spec.ts src/auth/auth.service.spec.ts src/auth/auth.resolver.spec.ts src/tenant/tenant.service.spec.ts src/membership/membership.service.spec.ts`
+- Integration tests passed:
+  - `npx jest --config ./test/jest-e2e.json --runInBand test/auth.e2e-spec.ts test/tenant.e2e-spec.ts`
+
+### Notes
+- For Apollo/Nest GraphQL in this codebase, error standardization is registered via `formatError` hook (function-based plugin point), delivering the target `UserError` shape in GraphQL error extensions.
 
 ## Dependencies
 

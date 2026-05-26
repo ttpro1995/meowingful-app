@@ -214,6 +214,49 @@ export class UserResolver {
 export class UserModule {}
 ```
 
+#### API Standard: Pagination, Filtering, and Error Shape
+Use the shared infrastructure from STORY-E01-07 for all list queries and mutation/query errors.
+
+```typescript
+// Shared inputs
+import { PaginationArgs, OrderByArgs } from 'src/shared/pagination/pagination.args';
+import { StringFilter, DateFilter, EnumFilter } from 'src/shared/pagination/filter.types';
+
+@InputType()
+class UsersQueryInput {
+  @Field(() => PaginationArgs, { nullable: true })
+  pagination?: PaginationArgs;
+
+  @Field(() => OrderByArgs, { nullable: true })
+  orderBy?: OrderByArgs;
+
+  @Field(() => UsersFilterInput, { nullable: true })
+  filter?: UsersFilterInput;
+}
+```
+
+```typescript
+// Shared payload pattern
+import { PaginatedResult } from 'src/shared/pagination/paginated-result.type';
+
+@ObjectType('PaginatedUsers')
+class UsersPayload extends PaginatedResult(User) {}
+
+// pageInfo shape: { total, page, limit, totalPages }
+```
+
+```typescript
+// Service-side pagination helper
+import { paginate } from 'src/shared/pagination/paginate';
+
+const { page, limit, skip, take } = paginate(query.pagination?.page, query.pagination?.limit);
+```
+
+Error responses are standardized by `formatGraphQLError` in [back-end/src/shared/errors/error-format.plugin.ts](../back-end/src/shared/errors/error-format.plugin.ts).
+- Validation errors map to `VALIDATION_ERROR` with field-level entries.
+- Known HTTP errors map to stable codes (`NOT_FOUND`, `UNAUTHORIZED`, etc.).
+- Unknown errors are masked to `INTERNAL_ERROR` in production.
+
 #### Database Development with Prisma
 ```bash
 # Workflow for schema changes

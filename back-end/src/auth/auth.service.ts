@@ -15,13 +15,20 @@ import {
   UpdateUserInput,
   ChangePasswordInput,
   UpdateUserProfileInput,
+  UsersFilterInput,
   UsersQueryInput,
   UsersPayload,
-  PageInfo,
   User,
 } from './auth.types';
 import { CacheService } from '../redis/cache.service';
 import { getTenantContext } from '../tenant/tenant-context.storage';
+import {
+  DateFilter,
+  EnumFilter,
+  StringFilter,
+} from '../shared/pagination/filter.types';
+import { SortDirection } from '../shared/pagination/pagination.args';
+import { paginate } from '../shared/pagination/paginate';
 
 interface SessionTokenPayload extends JwtPayload {
   sub: string;
@@ -44,6 +51,13 @@ export class AuthService {
   private readonly accessTokenTtlSeconds = 15 * 60;
   private readonly refreshTokenTtlSeconds = 7 * 24 * 60 * 60;
   private readonly refreshTokenKeyPrefix = 'refresh_token:';
+  private readonly userSortableFields = new Set([
+    'createdAt',
+    'updatedAt',
+    'username',
+    'name',
+    'role',
+  ]);
 
   constructor(
     private prisma: PrismaService,
@@ -568,130 +582,191 @@ export class AuthService {
     return true;
   }
 
-  // New method for paginated users query
-  async getUsers(query: UsersQueryInput): Promise<UsersPayload> {
-    const { first, last, after, before, includeDeleted = false } = query;
-
-    // Determine pagination direction
-    const isForward = first !== undefined || (!last && !before);
-    const take = first ?? last ?? 20;
-
-    // Build where clause for soft-delete filtering
-    const whereClause = includeDeleted ? {} : { deletedAt: null };
-
-    // Build cursor conditions
-    const cursorConditions: Prisma.UserWhereInput[] = [];
-    if (after) {
-      const decodedAfter = Buffer.from(after, 'base64').toString('utf-8');
-      if (isForward) {
-        cursorConditions.push({ createdAt: { gt: new Date(decodedAfter) } });
-      } else {
-        cursorConditions.push({ createdAt: { lt: new Date(decodedAfter) } });
-      }
-    }
-    if (before) {
-      const decodedBefore = Buffer.from(before, 'base64').toString('utf-8');
-      if (isForward) {
-        cursorConditions.push({ createdAt: { lt: new Date(decodedBefore) } });
-      } else {
-        cursorConditions.push({ createdAt: { gt: new Date(decodedBefore) } });
-      }
+  private parseUserRole(value: string): UserRole {
+    const parsedRole = Object.values(UserRole).find((role) => role === value);
+    if (!parsedRole) {
+      throw new BadRequestException(`Invalid role filter value: ${value}`);
     }
 
-    const cursorWhere: Prisma.UserWhereInput =
-      cursorConditions.length > 0
-        ? { AND: [whereClause, ...cursorConditions] }
-        : whereClause;
+    return parsedRole;
+  }
 
-    // Get total count (non-deleted)
-    const totalCount = await this.prisma.user.count({
-      where: { deletedAt: null },
-    });
+  private toStringFilter(
+    filter?: StringFilter,
+  ): Prisma.StringFilter | undefined {
+    if (!filter) {
+      return undefined;
+    }
 
-    // Fetch users with pagination
-    const users = await this.prisma.user.findMany({
-      where: cursorWhere,
-      orderBy: { createdAt: isForward ? 'asc' : 'desc' },
-      take: isForward ? take : -take,
-    });
-
-    // If querying backwards, reverse to maintain natural order
-    const orderedUsers = isForward ? users : [...users].reverse();
-
-    // Build page info
-    const pageInfo: PageInfo = {
-      hasNextPage: false,
-      hasPreviousPage: false,
-      startCursor: undefined,
-      endCursor: undefined,
+    const where: Prisma.StringFilter = {
+      mode: 'insensitive',
     };
 
-    if (orderedUsers.length > 0) {
-      pageInfo.startCursor = Buffer.from(
-        orderedUsers[0].createdAt.toISOString(),
-      ).toString('base64');
-      pageInfo.endCursor = Buffer.from(
-        orderedUsers[orderedUsers.length - 1].createdAt.toISOString(),
-      ).toString('base64');
-
-      // Check for next page
-      if (isForward) {
-        const nextUser = await this.prisma.user.findFirst({
-          where: {
-            ...whereClause,
-            createdAt: { gt: orderedUsers[orderedUsers.length - 1].createdAt },
-          },
-          orderBy: { createdAt: 'asc' },
-        });
-        pageInfo.hasNextPage = !!nextUser;
-
-        // Check for previous page
-        if (after) {
-          const prevUser = await this.prisma.user.findFirst({
-            where: {
-              ...whereClause,
-              createdAt: {
-                lt: new Date(Buffer.from(after, 'base64').toString('utf-8')),
-              },
-            },
-            orderBy: { createdAt: 'desc' },
-          });
-          pageInfo.hasPreviousPage = !!prevUser;
-        }
-      } else {
-        // Backward pagination
-        const prevUser = await this.prisma.user.findFirst({
-          where: {
-            ...whereClause,
-            createdAt: { lt: orderedUsers[0].createdAt },
-          },
-          orderBy: { createdAt: 'desc' },
-        });
-        pageInfo.hasPreviousPage = !!prevUser;
-
-        if (before) {
-          const nextUser = await this.prisma.user.findFirst({
-            where: {
-              ...whereClause,
-              createdAt: {
-                gt: new Date(Buffer.from(before, 'base64').toString('utf-8')),
-              },
-            },
-            orderBy: { createdAt: 'asc' },
-          });
-          pageInfo.hasNextPage = !!nextUser;
-        }
-      }
+    if (filter.equals) {
+      where.equals = filter.equals;
     }
 
+    if (filter.contains) {
+      where.contains = filter.contains;
+    }
+
+    if (filter.startsWith) {
+      where.startsWith = filter.startsWith;
+    }
+
+    if (filter.endsWith) {
+      where.endsWith = filter.endsWith;
+    }
+
+    if (filter.in && filter.in.length > 0) {
+      where.in = filter.in;
+    }
+
+    return Object.keys(where).length > 1 ? where : undefined;
+  }
+
+  private toDateFilter(filter?: DateFilter): Prisma.DateTimeFilter | undefined {
+    if (!filter) {
+      return undefined;
+    }
+
+    const where: Prisma.DateTimeFilter = {};
+
+    if (filter.equals) {
+      where.equals = new Date(filter.equals);
+    }
+
+    if (filter.gt) {
+      where.gt = new Date(filter.gt);
+    }
+
+    if (filter.gte) {
+      where.gte = new Date(filter.gte);
+    }
+
+    if (filter.lt) {
+      where.lt = new Date(filter.lt);
+    }
+
+    if (filter.lte) {
+      where.lte = new Date(filter.lte);
+    }
+
+    return Object.keys(where).length > 0 ? where : undefined;
+  }
+
+  private toRoleFilter(
+    filter?: EnumFilter,
+  ): Prisma.EnumUserRoleFilter | undefined {
+    if (!filter) {
+      return undefined;
+    }
+
+    const where: Prisma.EnumUserRoleFilter = {};
+
+    if (filter.equals) {
+      where.equals = this.parseUserRole(filter.equals);
+    }
+
+    if (filter.in && filter.in.length > 0) {
+      where.in = filter.in.map((value) => this.parseUserRole(value));
+    }
+
+    return Object.keys(where).length > 0 ? where : undefined;
+  }
+
+  private buildUsersWhereInput(
+    filter: UsersFilterInput | undefined,
+    includeDeleted: boolean,
+  ): Prisma.UserWhereInput {
+    const where: Prisma.UserWhereInput = includeDeleted
+      ? {}
+      : { deletedAt: null };
+
+    const usernameFilter = this.toStringFilter(filter?.username);
+    if (usernameFilter) {
+      where.username = usernameFilter;
+    }
+
+    const nameFilter = this.toStringFilter(filter?.name);
+    if (nameFilter) {
+      where.name = nameFilter;
+    }
+
+    const emailFilter = this.toStringFilter(filter?.email);
+    if (emailFilter) {
+      where.email = emailFilter;
+    }
+
+    const createdAtFilter = this.toDateFilter(filter?.createdAt);
+    if (createdAtFilter) {
+      where.createdAt = createdAtFilter;
+    }
+
+    const roleFilter = this.toRoleFilter(filter?.role);
+    if (roleFilter) {
+      where.role = roleFilter;
+    }
+
+    return where;
+  }
+
+  private resolveUsersOrderBy(
+    orderField: string | undefined,
+    direction: SortDirection | undefined,
+  ): Prisma.UserOrderByWithRelationInput {
+    const field = orderField ?? 'createdAt';
+    if (!this.userSortableFields.has(field)) {
+      throw new BadRequestException(`Unsupported orderBy.field: ${field}`);
+    }
+
+    const prismaDirection: Prisma.SortOrder =
+      direction === SortDirection.DESC ? 'desc' : 'asc';
+
     return {
-      users: orderedUsers.map(
-        (user): User => ({
-          ...this.mapUser(user),
-        }),
-      ),
-      pageInfo,
+      [field]: prismaDirection,
+    };
+  }
+
+  async getUsers(query: UsersQueryInput = {}): Promise<UsersPayload> {
+    const requestedLimit =
+      query.pagination?.limit ?? query.first ?? query.last ?? undefined;
+    const requestedPage = query.pagination?.page ?? 1;
+    const { page, limit, skip, take } = paginate(requestedPage, requestedLimit);
+
+    const includeDeleted =
+      query.filter?.includeDeleted ?? query.includeDeleted ?? false;
+    const where = this.buildUsersWhereInput(query.filter, includeDeleted);
+    const orderBy = this.resolveUsersOrderBy(
+      query.orderBy?.field,
+      query.orderBy?.direction,
+    );
+
+    const totalCount = await this.prisma.user.count({ where });
+
+    const users = await this.prisma.user.findMany({
+      where,
+      orderBy,
+      skip,
+      take,
+    });
+
+    const data = users.map(
+      (user): User => ({
+        ...this.mapUser(user),
+      }),
+    );
+
+    return {
+      data,
+      users: data,
       totalCount,
+      pageInfo: {
+        total: totalCount,
+        page,
+        limit,
+        totalPages: totalCount === 0 ? 0 : Math.ceil(totalCount / limit),
+      },
     };
   }
 }

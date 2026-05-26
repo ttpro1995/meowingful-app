@@ -5,9 +5,11 @@ import {
   ObjectType,
   registerEnumType,
 } from '@nestjs/graphql';
+import { Type } from 'class-transformer';
 import { UserRole } from '@prisma/client';
 import {
   IsAlphanumeric,
+  IsBoolean,
   IsEmail,
   IsLowercase,
   IsNotEmpty,
@@ -17,7 +19,18 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+import {
+  DateFilter,
+  EnumFilter,
+  StringFilter,
+} from '../shared/pagination/filter.types';
+import {
+  OrderByArgs,
+  PaginationArgs,
+} from '../shared/pagination/pagination.args';
+import { PaginatedResult } from '../shared/pagination/paginated-result.type';
 
 registerEnumType(UserRole, {
   name: 'UserRole',
@@ -159,52 +172,110 @@ export class ChangePasswordInput {
   newPassword: string;
 }
 
-@ObjectType()
-export class PageInfo {
-  @Field(() => String, { nullable: true })
-  startCursor?: string;
+@InputType()
+export class UsersFilterInput {
+  @Field(() => StringFilter, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => StringFilter)
+  username?: StringFilter;
 
-  @Field(() => String, { nullable: true })
-  endCursor?: string;
+  @Field(() => StringFilter, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => StringFilter)
+  name?: StringFilter;
 
-  @Field(() => Boolean)
-  hasNextPage: boolean;
+  @Field(() => StringFilter, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => StringFilter)
+  email?: StringFilter;
 
-  @Field(() => Boolean)
-  hasPreviousPage: boolean;
+  @Field(() => DateFilter, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DateFilter)
+  createdAt?: DateFilter;
+
+  @Field(() => EnumFilter, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => EnumFilter)
+  role?: EnumFilter;
+
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean({ message: 'includeDeleted must be a boolean' })
+  includeDeleted?: boolean;
 }
 
-@ObjectType()
-export class UsersPayload {
-  @Field(() => [User])
+@ObjectType('PaginatedUsers')
+export class UsersPayload extends PaginatedResult(User) {
+  @Field(() => [User], { deprecationReason: 'Use data instead' })
   users: User[];
 
-  @Field(() => PageInfo)
-  pageInfo: PageInfo;
-
-  @Field(() => Int)
+  @Field(() => Int, { deprecationReason: 'Use pageInfo.total instead' })
   totalCount: number;
 }
 
 @InputType()
 export class UsersQueryInput {
-  @Field(() => Int, { nullable: true })
+  @Field(() => PaginationArgs, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PaginationArgs)
+  pagination?: PaginationArgs;
+
+  @Field(() => OrderByArgs, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => OrderByArgs)
+  orderBy?: OrderByArgs;
+
+  @Field(() => UsersFilterInput, { nullable: true })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UsersFilterInput)
+  filter?: UsersFilterInput;
+
   @IsOptional()
   @IsInt({ message: 'first must be a number' })
+  @Field(() => Int, {
+    nullable: true,
+    deprecationReason: 'Use pagination.limit instead',
+  })
   first?: number;
 
-  @Field(() => Int, { nullable: true })
   @IsOptional()
   @IsInt({ message: 'last must be a number' })
+  @Field(() => Int, {
+    nullable: true,
+    deprecationReason: 'Use pagination.limit instead',
+  })
   last?: number;
 
-  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString({ message: 'after must be a string' })
+  @Field(() => String, {
+    nullable: true,
+    deprecationReason: 'Cursor pagination is deprecated; use pagination.page',
+  })
   after?: string;
 
-  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString({ message: 'before must be a string' })
+  @Field(() => String, {
+    nullable: true,
+    deprecationReason: 'Cursor pagination is deprecated; use pagination.page',
+  })
   before?: string;
 
-  @Field(() => Boolean, { nullable: true })
   @IsOptional()
+  @IsBoolean({ message: 'includeDeleted must be a boolean' })
+  @Field(() => Boolean, {
+    nullable: true,
+    deprecationReason: 'Use filter.includeDeleted instead',
+  })
   includeDeleted?: boolean;
 }

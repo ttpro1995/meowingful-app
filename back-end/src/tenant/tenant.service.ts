@@ -9,11 +9,16 @@ import {
   CreateTenantInput,
   Tenant,
   TenantListItem,
+  TenantsFilterInput,
   TenantsPayload,
+  TenantsQueryInput,
   UpdateTenantInput,
 } from './tenant.types';
 import { getTenantContext } from './tenant-context.storage';
-import { RoleName } from '@prisma/client';
+import { Prisma, RoleName } from '@prisma/client';
+import { DateFilter, StringFilter } from '../shared/pagination/filter.types';
+import { SortDirection } from '../shared/pagination/pagination.args';
+import { paginate } from '../shared/pagination/paginate';
 
 const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, string[]> = {
   SUPER_ADMIN: [
@@ -42,6 +47,15 @@ const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, string[]> = {
 
 @Injectable()
 export class TenantService {
+  private readonly tenantSortableFields = new Set([
+    'createdAt',
+    'updatedAt',
+    'name',
+    'slug',
+    'planTier',
+    'contactEmail',
+  ]);
+
   constructor(private readonly prisma: PrismaService) {}
 
   private isPrismaUniqueConstraintError(
@@ -86,6 +100,124 @@ export class TenantService {
       ...tenant,
       userCount,
       activeCourses: 0,
+    };
+  }
+
+  private toStringFilter(
+    filter?: StringFilter,
+  ): Prisma.StringFilter | undefined {
+    if (!filter) {
+      return undefined;
+    }
+
+    const where: Prisma.StringFilter = {
+      mode: 'insensitive',
+    };
+
+    if (filter.equals) {
+      where.equals = filter.equals;
+    }
+
+    if (filter.contains) {
+      where.contains = filter.contains;
+    }
+
+    if (filter.startsWith) {
+      where.startsWith = filter.startsWith;
+    }
+
+    if (filter.endsWith) {
+      where.endsWith = filter.endsWith;
+    }
+
+    if (filter.in && filter.in.length > 0) {
+      where.in = filter.in;
+    }
+
+    return Object.keys(where).length > 1 ? where : undefined;
+  }
+
+  private toDateFilter(filter?: DateFilter): Prisma.DateTimeFilter | undefined {
+    if (!filter) {
+      return undefined;
+    }
+
+    const where: Prisma.DateTimeFilter = {};
+
+    if (filter.equals) {
+      where.equals = new Date(filter.equals);
+    }
+
+    if (filter.gt) {
+      where.gt = new Date(filter.gt);
+    }
+
+    if (filter.gte) {
+      where.gte = new Date(filter.gte);
+    }
+
+    if (filter.lt) {
+      where.lt = new Date(filter.lt);
+    }
+
+    if (filter.lte) {
+      where.lte = new Date(filter.lte);
+    }
+
+    return Object.keys(where).length > 0 ? where : undefined;
+  }
+
+  private buildTenantsWhereInput(
+    filter?: TenantsFilterInput,
+  ): Prisma.TenantWhereInput {
+    const where: Prisma.TenantWhereInput = {};
+
+    const nameFilter = this.toStringFilter(filter?.name);
+    if (nameFilter) {
+      where.name = nameFilter;
+    }
+
+    const slugFilter = this.toStringFilter(filter?.slug);
+    if (slugFilter) {
+      where.slug = slugFilter;
+    }
+
+    const planTierFilter = this.toStringFilter(filter?.planTier);
+    if (planTierFilter) {
+      where.planTier = planTierFilter;
+    }
+
+    const contactEmailFilter = this.toStringFilter(filter?.contactEmail);
+    if (contactEmailFilter) {
+      where.contactEmail = contactEmailFilter;
+    }
+
+    const createdAtFilter = this.toDateFilter(filter?.createdAt);
+    if (createdAtFilter) {
+      where.createdAt = createdAtFilter;
+    }
+
+    if (typeof filter?.isActive === 'boolean') {
+      where.isActive = filter.isActive;
+    }
+
+    return where;
+  }
+
+  private resolveTenantsOrderBy(
+    orderField: string | undefined,
+    direction: SortDirection | undefined,
+  ): Prisma.TenantOrderByWithRelationInput {
+    const field = orderField ?? 'createdAt';
+    if (!this.tenantSortableFields.has(field)) {
+      throw new BadRequestException(`Unsupported orderBy.field: ${field}`);
+    }
+
+    const prismaDirection: Prisma.SortOrder =
+      direction === SortDirection.DESC ? 'desc' : 'asc';
+
+    return {
+      [field]: prismaDirection,
     };
   }
 
@@ -175,20 +307,43 @@ export class TenantService {
     return this.updateTenant(tenantId, { isActive: false });
   }
 
-  async tenants(): Promise<TenantsPayload> {
+  async tenants(query: TenantsQueryInput = {}): Promise<TenantsPayload> {
     this.assertSuperAdmin();
 
+    const { page, limit, skip, take } = paginate(
+      query.pagination?.page,
+      query.pagination?.limit,
+    );
+
+    const where = this.buildTenantsWhereInput(query.filter);
+    const orderBy = this.resolveTenantsOrderBy(
+      query.orderBy?.field,
+      query.orderBy?.direction,
+    );
+
+    const totalCount = await this.prisma.tenant.count({ where });
+
     const tenants = await this.prisma.tenant.findMany({
-      orderBy: { createdAt: 'asc' },
+      where,
+      orderBy,
+      skip,
+      take,
     });
 
-    const tenantsWithCounts = await Promise.all(
+    const data = await Promise.all(
       tenants.map((tenant) => this.mapTenantListItem(tenant)),
     );
 
     return {
-      tenants: tenantsWithCounts,
-      totalCount: tenantsWithCounts.length,
+      data,
+      tenants: data,
+      totalCount,
+      pageInfo: {
+        total: totalCount,
+        page,
+        limit,
+        totalPages: totalCount === 0 ? 0 : Math.ceil(totalCount / limit),
+      },
     };
   }
 
