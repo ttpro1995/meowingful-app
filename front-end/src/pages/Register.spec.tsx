@@ -144,4 +144,45 @@ describe('Register Page', () => {
       expect(screen.getByText(/error|failed/i)).toBeInTheDocument();
     });
   });
+
+  it('should show GraphQL error message when available', async () => {
+    const gqlLikeError = Object.assign(new Error('GraphQL validation error'), {
+      graphQLErrors: [{ message: 'Username already taken in GraphQL' }],
+    });
+
+    const mocks = [
+      {
+        request: {
+          query: REGISTER,
+          variables: {
+            input: {
+              username: 'existinguser',
+              password: 'password123',
+              name: 'Test User',
+            },
+          },
+        },
+        error: gqlLikeError,
+      },
+    ];
+
+    render(
+      <MockedProvider mocks={mocks}>
+        <MemoryRouter>
+          <AuthProvider>
+            <Register />
+          </AuthProvider>
+        </MemoryRouter>
+      </MockedProvider>
+    );
+
+    fireEvent.change(screen.getByLabelText(/Username/i), { target: { value: 'existinguser' } });
+    fireEvent.change(screen.getByLabelText(/Password/i), { target: { value: 'password123' } });
+    fireEvent.change(screen.getByLabelText(/Display Name/i), { target: { value: 'Test User' } });
+    fireEvent.click(screen.getByRole('button', { name: /Register/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Username already taken in GraphQL/i)).toBeInTheDocument();
+    });
+  });
 });
