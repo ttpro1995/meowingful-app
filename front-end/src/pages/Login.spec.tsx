@@ -139,4 +139,43 @@ describe('Login Page', () => {
       expect(screen.getByText(/error|failed/i)).toBeInTheDocument();
     });
   });
+
+  it('should show GraphQL error message when available', async () => {
+    const gqlLikeError = Object.assign(new Error('GraphQL validation error'), {
+      graphQLErrors: [{ message: 'Invalid credentials from GraphQL' }],
+    });
+
+    const mocks = [
+      {
+        request: {
+          query: LOGIN,
+          variables: {
+            input: {
+              username: 'testuser',
+              password: 'wrongpassword',
+            },
+          },
+        },
+        error: gqlLikeError,
+      },
+    ];
+
+    render(
+      <MockedProvider mocks={mocks}>
+        <MemoryRouter>
+          <AuthProvider>
+            <Login />
+          </AuthProvider>
+        </MemoryRouter>
+      </MockedProvider>
+    );
+
+    fireEvent.change(screen.getByLabelText(/Username/i), { target: { value: 'testuser' } });
+    fireEvent.change(screen.getByLabelText(/Password/i), { target: { value: 'wrongpassword' } });
+    fireEvent.click(screen.getByRole('button', { name: /Login/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Invalid credentials from GraphQL/i)).toBeInTheDocument();
+    });
+  });
 });

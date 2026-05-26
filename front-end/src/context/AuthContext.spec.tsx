@@ -126,4 +126,21 @@ describe('AuthContext', () => {
     expect(screen.getByTestId('username').textContent).toBe('testuser');
     expect(localStorageMock.setItem).toHaveBeenCalledWith('user', JSON.stringify({ id: '1', username: 'testuser', name: 'Updated Name', bio: null }));
   });
+
+  it('should not persist user updates when no user is authenticated', () => {
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <TestComponent />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByText('Update'));
+
+    expect(localStorageMock.setItem).not.toHaveBeenCalledWith(
+      'user',
+      expect.stringContaining('Updated Name'),
+    );
+  });
 });
