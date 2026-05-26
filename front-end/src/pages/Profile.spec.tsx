@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import Profile from '../pages/Profile';
 import { AuthProvider } from '../context/AuthContext';
 import { MockedProvider } from '@apollo/client/testing/react';
+import type { MockedResponse } from '@apollo/client/testing';
 import { MemoryRouter } from 'react-router-dom';
 import {
   GET_USER,
@@ -11,7 +12,14 @@ import {
   LOGOUT,
 } from '../graphql/queries';
 
-const baseUser = {
+type ProfileUser = {
+  id: string;
+  username: string;
+  name: string;
+  bio: string | null;
+};
+
+const baseUser: ProfileUser = {
   id: '123',
   username: 'testuser',
   name: 'Test User',
@@ -102,7 +110,7 @@ describe('Profile Page', () => {
     store: Record<string, string>;
   };
 
-  const renderProfile = (mocks: unknown[] = [makeGetUserMock()]) => {
+  const renderProfile = (mocks: ReadonlyArray<MockedResponse> = [makeGetUserMock()]) => {
     return render(
       <MockedProvider mocks={mocks}>
         <MemoryRouter>
