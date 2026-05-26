@@ -11,6 +11,21 @@ export class PrismaService
 {
   private readonly tenantScopedModels = new Set(['User', 'Auth']);
 
+  private scopedUserWhere(tenantId: string): Record<string, unknown> {
+    return {
+      OR: [
+        { tenantId },
+        {
+          userRoles: {
+            some: {
+              tenantId,
+            },
+          },
+        },
+      ],
+    };
+  }
+
   private isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
@@ -67,6 +82,59 @@ export class PrismaService
             }
 
             const nextArgs = this.toRecord(args);
+
+            if (model === 'User') {
+              if (operation === 'findUnique') {
+                nextArgs.where = this.withTenantId(
+                  nextArgs.where,
+                  context.tenantId,
+                );
+
+                return query(nextArgs);
+              }
+
+              if (operation === 'create') {
+                nextArgs.data = this.withTenantId(
+                  nextArgs.data,
+                  context.tenantId,
+                );
+
+                return query(nextArgs);
+              }
+
+              if (operation === 'createMany') {
+                nextArgs.data = this.withTenantIdForCreateMany(
+                  nextArgs.data,
+                  context.tenantId,
+                );
+
+                return query(nextArgs);
+              }
+
+              const userScope = this.scopedUserWhere(context.tenantId);
+              const existingWhere = this.toRecord(nextArgs.where);
+
+              nextArgs.where =
+                Object.keys(existingWhere).length === 0
+                  ? userScope
+                  : {
+                      AND: [existingWhere, userScope],
+                    };
+
+              if (operation === 'upsert') {
+                nextArgs.create = this.withTenantId(
+                  nextArgs.create,
+                  context.tenantId,
+                );
+
+                nextArgs.update = this.withTenantId(
+                  nextArgs.update,
+                  context.tenantId,
+                );
+              }
+
+              return query(nextArgs);
+            }
 
             if (operation === 'create') {
               nextArgs.data = this.withTenantId(

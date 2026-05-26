@@ -420,6 +420,31 @@ describe('TenantManagement (e2e)', () => {
       },
     });
 
+    const superAdminRole = await prismaService.role.upsert({
+      where: {
+        tenantId_name: {
+          tenantId: defaultTenant.id,
+          name: 'SUPER_ADMIN',
+        },
+      },
+      update: {},
+      create: {
+        tenantId: defaultTenant.id,
+        name: 'SUPER_ADMIN',
+      },
+    });
+
+    await prismaService.userTenantRole.createMany({
+      data: [
+        {
+          userId: superAdmin.id,
+          tenantId: defaultTenant.id,
+          roleId: superAdminRole.id,
+        },
+      ],
+      skipDuplicates: true,
+    });
+
     const loginRes = await request(
       app.getHttpServer() as Parameters<typeof request>[0],
     )

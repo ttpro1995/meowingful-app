@@ -9,6 +9,7 @@ import { UserRole } from '@prisma/client';
 import { GraphQLResolveInfo } from 'graphql';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { RequestWithTenantContext } from './tenant.request';
+import { PrismaService } from '../prisma/prisma.service';
 
 interface AccessTokenPayload extends JwtPayload {
   sub: string;
@@ -18,6 +19,8 @@ interface AccessTokenPayload extends JwtPayload {
 
 @Injectable()
 export class TenantGuard implements CanActivate {
+  constructor(private readonly prisma: PrismaService) {}
+
   private readonly publicMutations = new Set([
     'register',
     'login',
@@ -72,7 +75,26 @@ export class TenantGuard implements CanActivate {
     }
   }
 
-  canActivate(context: ExecutionContext): boolean {
+  private async ensureTenantMembership(
+    userId: string,
+    tenantId: string,
+  ): Promise<void> {
+    const membership = await this.prisma.userTenantRole.findFirst({
+      where: {
+        userId,
+        tenantId,
+      },
+      select: {
+        userId: true,
+      },
+    });
+
+    if (!membership) {
+      throw new UnauthorizedException('UNAUTHORIZED');
+    }
+  }
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     if (context.getType<'graphql' | 'http'>() !== 'graphql') {
       return true;
     }
@@ -93,6 +115,8 @@ export class TenantGuard implements CanActivate {
 
     const accessToken = this.extractAccessToken(req);
     const payload = this.verifyAccessToken(accessToken);
+
+    await this.ensureTenantMembership(payload.sub, payload.tenantId);
 
     req.tenantContext = {
       userId: payload.sub,

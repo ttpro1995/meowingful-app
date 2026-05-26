@@ -5,6 +5,7 @@ import { useAuth } from './context/useAuth';
 import Register from './pages/Register';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
+import InviteResponse from './pages/InviteResponse';
 import './App.css';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -18,6 +19,7 @@ function AppContent() {
       <Routes>
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/invite" element={<InviteResponse />} />
         <Route
           path="/profile"
           element={

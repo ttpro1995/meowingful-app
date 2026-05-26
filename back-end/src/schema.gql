@@ -95,14 +95,14 @@ type Mutation {
   createTenant(input: CreateTenantInput!): Tenant!
   deactivateTenant(tenantId: String!): Tenant!
   declineInvitation(input: DeclineInvitationInput!): Boolean!
-  grantPermission(permissionCode: String!, roleName: String!, tenantId: String!): Boolean!
+  grantPermission(permissionCode: String!, roleName: RoleName!, tenantId: String!): Boolean!
   inviteMember(input: InviteMemberInput!): InviteMemberPayload!
   login(input: LoginInput!): AuthPayload!
   logout: Boolean!
   refreshToken: AuthPayload!
   register(input: RegisterInput!): AuthPayload!
   removeMember(userId: String!): Boolean!
-  revokePermission(permissionCode: String!, roleName: String!, tenantId: String!): Boolean!
+  revokePermission(permissionCode: String!, roleName: RoleName!, tenantId: String!): Boolean!
   switchTenant(tenantId: String!): AuthPayload!
   updateMemberRoles(input: UpdateMemberRolesInput!): TenantMember!
   updateTenant(input: UpdateTenantInput!, tenantId: String!): Tenant!
@@ -125,6 +125,7 @@ type Query {
   getMe(userId: String!): MePayload!
   getUser(userId: String!): User!
   members(query: MembersQueryInput): MembersPayload!
+  myPermissions: [String!]!
   myTenant: Tenant!
   myTenants: MyTenantsPayload!
   rolePermissions(tenantId: String!): [RolePermissionsMatrix!]!

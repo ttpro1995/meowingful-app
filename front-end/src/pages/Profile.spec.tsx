@@ -10,20 +10,26 @@ import {
   UPDATE_USER,
   CHANGE_PASSWORD,
   LOGOUT,
+  MY_TENANTS,
+  SWITCH_TENANT,
 } from '../graphql/queries';
 
 type ProfileUser = {
   id: string;
+  tenantId: string;
   username: string;
   name: string;
   bio: string | null;
+  role: string;
 };
 
 const baseUser: ProfileUser = {
   id: '123',
+  tenantId: 'tenant-1',
   username: 'testuser',
   name: 'Test User',
   bio: 'Test bio',
+  role: 'USER',
 };
 
 const makeGetUserMock = (overrides: Partial<typeof baseUser> = {}) => ({
@@ -101,6 +107,34 @@ const logoutFailureMock = {
   error: new Error('Logout API failed'),
 };
 
+const makeMyTenantsMock = (
+  memberships: Array<{
+    tenantId: string;
+    tenantName: string;
+    tenantSlug: string;
+    roleNames: string[];
+  }> = [
+    {
+      tenantId: 'tenant-1',
+      tenantName: 'Tenant One',
+      tenantSlug: 'tenant-one',
+      roleNames: ['USER'],
+    },
+  ],
+) => ({
+  request: {
+    query: MY_TENANTS,
+    variables: {},
+  },
+  result: {
+    data: {
+      myTenants: {
+        memberships,
+      },
+    },
+  },
+});
+
 describe('Profile Page', () => {
   let localStorageMock: {
     getItem: ReturnType<typeof vi.fn>;
@@ -110,7 +144,12 @@ describe('Profile Page', () => {
     store: Record<string, string>;
   };
 
-  const renderProfile = (mocks: ReadonlyArray<MockedResponse> = [makeGetUserMock()]) => {
+  const renderProfile = (
+    mocks: ReadonlyArray<MockedResponse> = [
+      makeGetUserMock(),
+      makeMyTenantsMock(),
+    ],
+  ) => {
     return render(
       <MockedProvider mocks={mocks}>
         <MemoryRouter>
@@ -152,7 +191,7 @@ describe('Profile Page', () => {
   });
 
   it('renders profile information correctly', async () => {
-    renderProfile([makeGetUserMock()]);
+    renderProfile([makeGetUserMock(), makeMyTenantsMock()]);
 
     expect(await screen.findByRole('heading', { level: 1, name: /Profile/i })).toBeInTheDocument();
     expect(screen.getByText(/testuser/i)).toBeInTheDocument();
@@ -162,13 +201,13 @@ describe('Profile Page', () => {
 
   it('shows fallback bio text when bio is empty', async () => {
     localStorageMock.store.user = JSON.stringify({ ...baseUser, bio: null });
-    renderProfile([makeGetUserMock({ bio: null })]);
+    renderProfile([makeGetUserMock({ bio: null }), makeMyTenantsMock()]);
 
     expect(await screen.findByText(/No bio set/i)).toBeInTheDocument();
   });
 
   it('opens and cancels edit mode', async () => {
-    renderProfile([makeGetUserMock()]);
+    renderProfile([makeGetUserMock(), makeMyTenantsMock()]);
 
     fireEvent.click(await screen.findByRole('button', { name: /Edit Profile/i }));
     expect(screen.getByLabelText(/Display Name/i)).toBeInTheDocument();
@@ -183,6 +222,7 @@ describe('Profile Page', () => {
   it('updates profile successfully and persists auth user', async () => {
     renderProfile([
       makeGetUserMock(),
+      makeMyTenantsMock(),
       makeUpdateUserMock('Updated User', 'Updated bio'),
       makeGetUserMock({ name: 'Updated User', bio: 'Updated bio' }),
     ]);
@@ -212,6 +252,7 @@ describe('Profile Page', () => {
   it('keeps edit mode open when update mutation returns no user payload', async () => {
     renderProfile([
       makeGetUserMock(),
+      makeMyTenantsMock(),
       {
         request: {
           query: UPDATE_USER,
@@ -246,6 +287,7 @@ describe('Profile Page', () => {
   it('shows update fallback error when profile update fails', async () => {
     renderProfile([
       makeGetUserMock(),
+      makeMyTenantsMock(),
       {
         request: {
           query: UPDATE_USER,
@@ -272,8 +314,74 @@ describe('Profile Page', () => {
     });
   });
 
+  it('switches active tenant and persists the new tenant session', async () => {
+    const memberships = [
+      {
+        tenantId: 'tenant-1',
+        tenantName: 'Tenant One',
+        tenantSlug: 'tenant-one',
+        roleNames: ['USER'],
+      },
+      {
+        tenantId: 'tenant-2',
+        tenantName: 'Tenant Two',
+        tenantSlug: 'tenant-two',
+        roleNames: ['STAFF'],
+      },
+    ];
+
+    renderProfile([
+      makeGetUserMock(),
+      makeMyTenantsMock(memberships),
+      {
+        request: {
+          query: SWITCH_TENANT,
+          variables: {
+            tenantId: 'tenant-2',
+          },
+        },
+        result: {
+          data: {
+            switchTenant: {
+              accessToken: 'tenant-2-token',
+              user: {
+                ...baseUser,
+                tenantId: 'tenant-2',
+                createdAt: '2026-03-29T00:00:00Z',
+                updatedAt: '2026-03-29T00:00:00Z',
+              },
+            },
+          },
+        },
+      },
+      makeGetUserMock(),
+      makeMyTenantsMock(memberships),
+    ]);
+
+    fireEvent.change(await screen.findByLabelText(/Active Tenant/i), {
+      target: { value: 'tenant-2' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Switch Tenant/i }));
+
+    await waitFor(() => {
+      expect(localStorageMock.setItem).toHaveBeenCalledWith('token', 'tenant-2-token');
+    });
+
+    expect(localStorageMock.setItem).toHaveBeenCalledWith(
+      'user',
+      JSON.stringify({
+        ...baseUser,
+        tenantId: 'tenant-2',
+        createdAt: '2026-03-29T00:00:00Z',
+        updatedAt: '2026-03-29T00:00:00Z',
+      }),
+    );
+    expect(screen.getByText(/Active tenant switched successfully!/i)).toBeInTheDocument();
+  });
+
   it('opens and cancels change password form while clearing entered state', async () => {
-    renderProfile([makeGetUserMock()]);
+    renderProfile([makeGetUserMock(), makeMyTenantsMock()]);
 
     fireEvent.click(await screen.findByRole('button', { name: /Change Password/i }));
     fireEvent.change(screen.getByLabelText(/Current Password/i), {
@@ -303,7 +411,7 @@ describe('Profile Page', () => {
   });
 
   it('shows min length validation when new password is too short', async () => {
-    renderProfile([makeGetUserMock()]);
+    renderProfile([makeGetUserMock(), makeMyTenantsMock()]);
 
     fireEvent.click(await screen.findByRole('button', { name: /Change Password/i }));
     fireEvent.change(screen.getByLabelText(/Current Password/i), {
@@ -326,6 +434,7 @@ describe('Profile Page', () => {
   it('changes password successfully', async () => {
     renderProfile([
       makeGetUserMock(),
+      makeMyTenantsMock(),
       makeChangePasswordMock('old-password', 'new-password-123'),
     ]);
 
@@ -352,6 +461,7 @@ describe('Profile Page', () => {
   it('shows password update fallback error when mutation fails', async () => {
     renderProfile([
       makeGetUserMock(),
+      makeMyTenantsMock(),
       {
         request: {
           query: CHANGE_PASSWORD,
@@ -385,7 +495,7 @@ describe('Profile Page', () => {
   });
 
   it('logs out and clears local auth state on successful logout mutation', async () => {
-    renderProfile([makeGetUserMock(), logoutSuccessMock]);
+    renderProfile([makeGetUserMock(), makeMyTenantsMock(), logoutSuccessMock]);
 
     fireEvent.click(await screen.findByRole('button', { name: /Logout/i }));
 
@@ -396,7 +506,7 @@ describe('Profile Page', () => {
   });
 
   it('logs out and clears local auth state even when logout mutation fails', async () => {
-    renderProfile([makeGetUserMock(), logoutFailureMock]);
+    renderProfile([makeGetUserMock(), makeMyTenantsMock(), logoutFailureMock]);
 
     fireEvent.click(await screen.findByRole('button', { name: /Logout/i }));
 

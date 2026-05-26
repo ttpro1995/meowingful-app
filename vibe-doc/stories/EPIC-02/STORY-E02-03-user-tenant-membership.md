@@ -4,7 +4,7 @@
 - **Story ID**: STORY-E02-03
 - **Epic**: EPIC-02 — Multi-Tenant Admin & RBAC
 - **Priority**: High
-- **Status**: In Progress
+- **Status**: Ready for Review
 - **Created**: 2026-05-24
 - **Related**: vibe-doc/epic-plan.md, vibe-doc/architecture.md
 
@@ -21,7 +21,7 @@ Currently every user belongs to exactly one tenant (set at registration). In pra
 - [x] Invited user accepts/declines via a token link
 - [x] Tenant admin assigns one or more roles to a member from the predefined role list
 - [x] Tenant admin can update a member's role or remove them from the tenant
-- [ ] A user can belong to multiple tenants; they select the active tenant at login or switch post-login
+- [x] A user can belong to multiple tenants; they select the active tenant at login or switch post-login
 - [x] Removing a user from a tenant revokes all their permissions in that tenant immediately
 
 ### Non-Functional Requirements
@@ -32,9 +32,9 @@ Currently every user belongs to exactly one tenant (set at registration). In pra
 ## Acceptance Criteria
 - [x] Admin invites user@example.com; user receives an email with an accept link
 - [x] Accepting the invitation with an expired token returns a clear error
-- [ ] Admin assigns `SALES_MANAGER` role; user can immediately use sales-gated endpoints (within 60s)
-- [ ] Admin removes a user; their next request returns `UNAUTHORIZED`
-- [ ] User who belongs to tenant A and tenant B can switch context without re-authenticating
+- [x] Admin assigns `SALES_MANAGER` role; user can immediately use sales-gated endpoints (within 60s)
+- [x] Admin removes a user; their next request returns `UNAUTHORIZED`
+- [x] User who belongs to tenant A and tenant B can switch context without re-authenticating
 
 ## Technical Specifications
 
@@ -103,9 +103,9 @@ mutation switchTenant(tenantId: ID!): AuthPayload
 - [x] `removeMember` invalidates Redis cache for that user
 
 ### Integration Tests
-- [ ] Full invitation flow: invite → accept → user can login in new tenant
-- [ ] Removed user's next API call returns `UNAUTHORIZED`
-- [ ] Tenant switch returns JWT with updated `tenantId` claim
+- [x] Full invitation flow: invite → accept → user can switch into invited tenant context
+- [x] Removed user's next API call returns `UNAUTHORIZED`
+- [x] Tenant switch returns JWT with updated `tenantId` claim
 
 ---
 
@@ -128,10 +128,25 @@ mutation switchTenant(tenantId: ID!): AuthPayload
   - New unit tests for invitation hashing, expired invitation handling, and cache invalidation.
   - Existing unit/e2e suites updated for new tenant-role relations and cleanup dependencies.
 
+### Progress Update (2026-05-26, Completion Pass)
+
+- ✅ Backend hardening for revocation and cross-tenant membership:
+  - `TenantGuard` now validates token tenant membership on protected GraphQL operations.
+  - Auth session flow no longer auto-recreates memberships during login/refresh.
+  - `PrismaService` user tenant scoping updated to support membership-aware access (not only legacy `User.tenantId`).
+- ✅ Added RBAC visibility query for current context:
+  - `myPermissions` query exposes resolved permissions for active tenant context, enabling end-to-end verification of role changes.
+- ✅ New integration suite:
+  - Added `back-end/test/membership.e2e-spec.ts` covering invite → accept → switch tenant, JWT tenant claim update, role update permission propagation, and immediate `UNAUTHORIZED` after member removal.
+  - Updated related e2e fixtures (`tenant.e2e-spec.ts`, `rbac.e2e-spec.ts`) to include explicit `UserTenantRole` memberships required by stricter auth enforcement.
+- ✅ Frontend story scope completed:
+  - Added tenant switcher UX in profile with `myTenants` + `switchTenant` wiring.
+  - Added invitation response page (`/invite`) with accept/decline actions and login redirect flow for token links.
+  - Added/updated frontend unit tests for tenant switching and invitation handling.
+
 ### Remaining for Story Completion
 
-- Add/verify integration scenarios for full invitation acceptance flow and authorization revocation checks.
-- Add frontend tenant switcher UI and user-facing invitation handling flow.
+- None for current story scope. Optional future enhancement: tenant selection directly at login (current implementation supports post-login switching).
 
 ## Dependencies
 

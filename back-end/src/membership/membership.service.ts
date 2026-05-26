@@ -490,13 +490,18 @@ export class MembershipService {
       );
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: input.userId },
-      select: { id: true },
+    const existingMembership = await this.prisma.userTenantRole.findFirst({
+      where: {
+        tenantId: context.tenantId,
+        userId: input.userId,
+      },
+      select: {
+        userId: true,
+      },
     });
 
-    if (!user) {
-      throw new BadRequestException('User not found');
+    if (!existingMembership) {
+      throw new BadRequestException('Member not found');
     }
 
     await this.prisma.$transaction(async (tx) => {

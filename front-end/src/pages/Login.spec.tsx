@@ -72,9 +72,11 @@ describe('Login Page', () => {
               accessToken: 'new-token',
               user: {
                 id: '123',
+                tenantId: 'tenant-1',
                 username: 'testuser',
                 name: 'Test User',
                 bio: null,
+                role: 'USER',
                 createdAt: '2026-03-29T00:00:00Z',
                 updatedAt: '2026-03-29T00:00:00Z',
               },
