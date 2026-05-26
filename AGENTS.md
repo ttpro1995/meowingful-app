@@ -105,6 +105,10 @@ npx prisma migrate deploy  # Apply migrations (non-interactive)
 - **Prettier:** `.prettierrc` with consistent formatting rules  
 - **TypeScript:** Strict mode with modern ES2023 target
 
+**Quality Check Commands:**
+- Backend: `npm run lint` (ESLint), `npm run build` (TypeScript compilation)
+- Run both before committing
+
 ## Common Tasks
 
 ### Adding New Features

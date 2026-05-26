@@ -2,6 +2,7 @@ import { UnauthorizedException } from '@nestjs/common';
 import { Resolver, Query, Mutation, Args, Context } from '@nestjs/graphql';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
+import { getTenantContext } from '../tenant/tenant-context.storage';
 import {
   User,
   AuthPayload,
@@ -98,6 +99,28 @@ export class AuthResolver {
   @Mutation(() => AuthPayload)
   async login(@Args('input') input: LoginInput, @Context('res') res: Response) {
     const session = await this.authService.login(input);
+    this.setRefreshTokenCookie(res, session.refreshToken);
+
+    return {
+      accessToken: session.accessToken,
+      user: session.user,
+    };
+  }
+
+  @Mutation(() => AuthPayload)
+  async switchTenant(
+    @Args('tenantId') tenantId: string,
+    @Context('res') res: Response,
+  ) {
+    const context = getTenantContext();
+    if (!context?.userId) {
+      throw new UnauthorizedException('UNAUTHORIZED');
+    }
+
+    const session = await this.authService.switchTenant(
+      context.userId,
+      tenantId,
+    );
     this.setRefreshTokenCookie(res, session.refreshToken);
 
     return {

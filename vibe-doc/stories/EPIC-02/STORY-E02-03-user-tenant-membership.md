@@ -4,7 +4,7 @@
 - **Story ID**: STORY-E02-03
 - **Epic**: EPIC-02 — Multi-Tenant Admin & RBAC
 - **Priority**: High
-- **Status**: Todo
+- **Status**: In Progress
 - **Created**: 2026-05-24
 - **Related**: vibe-doc/epic-plan.md, vibe-doc/architecture.md
 
@@ -17,21 +17,21 @@ Currently every user belongs to exactly one tenant (set at registration). In pra
 ## Requirements
 
 ### Functional Requirements
-- [ ] Tenant admin can invite a user by email; invitation is sent (email via STORY-E04-01) and expires in 72h
-- [ ] Invited user accepts/declines via a token link
-- [ ] Tenant admin assigns one or more roles to a member from the predefined role list
-- [ ] Tenant admin can update a member's role or remove them from the tenant
+- [x] Tenant admin can invite a user by email; invitation is sent (email via STORY-E04-01) and expires in 72h
+- [x] Invited user accepts/declines via a token link
+- [x] Tenant admin assigns one or more roles to a member from the predefined role list
+- [x] Tenant admin can update a member's role or remove them from the tenant
 - [ ] A user can belong to multiple tenants; they select the active tenant at login or switch post-login
-- [ ] Removing a user from a tenant revokes all their permissions in that tenant immediately
+- [x] Removing a user from a tenant revokes all their permissions in that tenant immediately
 
 ### Non-Functional Requirements
-- [ ] Invitation token is a signed JWT (short-lived, not stored in DB except as hash for revocation)
-- [ ] Role changes take effect within the Redis cache TTL (60s, see E02-02)
-- [ ] Pagination on member list follows STORY-E01-07 standard
+- [x] Invitation token is a signed JWT (short-lived, not stored in DB except as hash for revocation)
+- [x] Role changes take effect within the Redis cache TTL (60s, see E02-02)
+- [x] Pagination on member list follows STORY-E01-07 standard
 
 ## Acceptance Criteria
-- [ ] Admin invites user@example.com; user receives an email with an accept link
-- [ ] Accepting the invitation with an expired token returns a clear error
+- [x] Admin invites user@example.com; user receives an email with an accept link
+- [x] Accepting the invitation with an expired token returns a clear error
 - [ ] Admin assigns `SALES_MANAGER` role; user can immediately use sales-gated endpoints (within 60s)
 - [ ] Admin removes a user; their next request returns `UNAUTHORIZED`
 - [ ] User who belongs to tenant A and tenant B can switch context without re-authenticating
@@ -98,14 +98,40 @@ mutation switchTenant(tenantId: ID!): AuthPayload
 ## Testing Strategy
 
 ### Unit Tests
-- [ ] Invitation token hash is generated and stored correctly
-- [ ] Expired invitation token returns `INVITATION_EXPIRED` error
-- [ ] `removeMember` invalidates Redis cache for that user
+- [x] Invitation token hash is generated and stored correctly
+- [x] Expired invitation token returns `INVITATION_EXPIRED` error
+- [x] `removeMember` invalidates Redis cache for that user
 
 ### Integration Tests
 - [ ] Full invitation flow: invite → accept → user can login in new tenant
 - [ ] Removed user's next API call returns `UNAUTHORIZED`
 - [ ] Tenant switch returns JWT with updated `tenantId` claim
+
+---
+
+### Progress Update (2026-05-26)
+
+- ✅ Prisma updated for multi-role membership and invitations:
+  - `UserTenantRole` now supports multiple roles per user/tenant via composite key.
+  - `Invitation` model added with hashed token storage, expiry, and accepted/declined timestamps.
+  - Migration added at `back-end/prisma/migrations/20260526103000_story_e02_03_membership_and_invitation`.
+- ✅ New backend `MembershipModule` implemented:
+  - `inviteMember`, `acceptInvitation`, `declineInvitation`
+  - `members` query with cursor pagination (`first/last/after/before`)
+  - `updateMemberRoles` (multi-role assignment) and `removeMember`
+  - `myTenants` query for tenant membership listing
+- ✅ Auth flow extended with `switchTenant(tenantId)` mutation:
+  - Validates membership in target tenant.
+  - Issues a fresh JWT/session for the selected tenant context.
+- ✅ RBAC permission loading now resolves from `UserTenantRole` assignments (with legacy fallback), and cache invalidation covers membership-based users.
+- ✅ Tests added/updated:
+  - New unit tests for invitation hashing, expired invitation handling, and cache invalidation.
+  - Existing unit/e2e suites updated for new tenant-role relations and cleanup dependencies.
+
+### Remaining for Story Completion
+
+- Add/verify integration scenarios for full invitation acceptance flow and authorization revocation checks.
+- Add frontend tenant switcher UI and user-facing invitation handling flow.
 
 ## Dependencies
 

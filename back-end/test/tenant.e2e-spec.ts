@@ -31,26 +31,90 @@ describe('TenantManagement (e2e)', () => {
   });
 
   afterAll(async () => {
+    const testTenants = await prismaService.tenant.findMany({
+      where: {
+        slug: {
+          startsWith: testSlugPrefix,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+    const tenantIds = testTenants.map((tenant) => tenant.id);
+
+    await prismaService.rolePermission.deleteMany({
+      where: {
+        role: {
+          tenantId: {
+            in: tenantIds,
+          },
+        },
+      },
+    });
+
+    await prismaService.invitation.deleteMany({
+      where: {
+        tenantId: {
+          in: tenantIds,
+        },
+      },
+    });
+
+    await prismaService.userTenantRole.deleteMany({
+      where: {
+        tenantId: {
+          in: tenantIds,
+        },
+      },
+    });
+
     await prismaService.auth.deleteMany({
       where: {
-        username: {
-          startsWith: testUserPrefix,
-        },
+        OR: [
+          {
+            username: {
+              startsWith: testUserPrefix,
+            },
+          },
+          {
+            tenantId: {
+              in: tenantIds,
+            },
+          },
+        ],
       },
     });
 
     await prismaService.user.deleteMany({
       where: {
-        username: {
-          startsWith: testUserPrefix,
+        OR: [
+          {
+            username: {
+              startsWith: testUserPrefix,
+            },
+          },
+          {
+            tenantId: {
+              in: tenantIds,
+            },
+          },
+        ],
+      },
+    });
+
+    await prismaService.role.deleteMany({
+      where: {
+        tenantId: {
+          in: tenantIds,
         },
       },
     });
 
     await prismaService.tenant.deleteMany({
       where: {
-        slug: {
-          startsWith: testSlugPrefix,
+        id: {
+          in: tenantIds,
         },
       },
     });

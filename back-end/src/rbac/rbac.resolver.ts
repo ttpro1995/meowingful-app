@@ -13,6 +13,15 @@ export class RbacResolver {
     private readonly permissionService: PermissionService,
   ) {}
 
+  private parseRoleName(roleName: string): RoleName {
+    const parsed = Object.values(RoleName).find((value) => value === roleName);
+    if (!parsed) {
+      throw new ForbiddenException('Role or permission not found');
+    }
+
+    return parsed;
+  }
+
   @Query(() => [RolePermissionsMatrix])
   async rolePermissions(@Args('tenantId') tenantId: string) {
     const context = getTenantContext();
@@ -35,8 +44,9 @@ export class RbacResolver {
     @Args('roleName', { type: () => RoleName }) roleName: RoleName,
     @Args('permissionCode') permissionCode: string,
   ) {
+    const parsedRoleName = this.parseRoleName(roleName);
     const role = await this.prisma.role.findFirst({
-      where: { tenantId, name: roleName },
+      where: { tenantId, name: parsedRoleName },
     });
     const perm = await this.prisma.permission.findUnique({
       where: { code: permissionCode },
@@ -60,21 +70,25 @@ export class RbacResolver {
     @Args('roleName', { type: () => RoleName }) roleName: RoleName,
     @Args('permissionCode') permissionCode: string,
   ) {
+    const parsedRoleName = this.parseRoleName(roleName);
     const role = await this.prisma.role.findFirst({
-      where: { tenantId, name: roleName },
+      where: { tenantId, name: parsedRoleName },
     });
     const perm = await this.prisma.permission.findUnique({
       where: { code: permissionCode },
     });
     if (!role || !perm)
       throw new ForbiddenException('Role or permission not found');
-    await this.prisma.rolePermission
-      .delete({
+    try {
+      await this.prisma.rolePermission.delete({
         where: {
           roleId_permissionId: { roleId: role.id, permissionId: perm.id },
         },
-      })
-      .catch(() => {});
+      });
+    } catch {
+      // Ignore missing mapping because mutation is idempotent.
+    }
+
     await this.permissionService.invalidateRolePermissions(tenantId, roleName);
     return true;
   }

@@ -9,6 +9,7 @@ describe('PermissionService', () => {
   let mockPrisma: {
     user: { findUnique: jest.Mock; findMany: jest.Mock };
     role: { findFirst: jest.Mock };
+    userTenantRole: { findMany: jest.Mock };
   };
   let mockRedis: {
     get: jest.Mock;
@@ -24,6 +25,9 @@ describe('PermissionService', () => {
       },
       role: {
         findFirst: jest.fn(),
+      },
+      userTenantRole: {
+        findMany: jest.fn(),
       },
     };
 
@@ -64,19 +68,18 @@ describe('PermissionService', () => {
       expect(result).toEqual(['lead:create', 'lead:delete']);
       expect(mockRedis.get).toHaveBeenCalledWith('perm:tenant-1:user-1');
       expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.userTenantRole.findMany).not.toHaveBeenCalled();
     });
 
     it('should load and cache permissions when not cached', async () => {
       mockRedis.get.mockResolvedValue(null);
-      mockPrisma.user.findUnique.mockResolvedValue({
-        id: 'user-1',
-        role: 'SUPER_ADMIN',
-      });
-      mockPrisma.role.findFirst.mockResolvedValue({
-        id: 'role-1',
-        name: RoleName.SUPER_ADMIN,
-        permissions: [{ permission: { code: 'lead:create' } }],
-      });
+      mockPrisma.userTenantRole.findMany.mockResolvedValue([
+        {
+          role: {
+            permissions: [{ permission: { code: 'lead:create' } }],
+          },
+        },
+      ]);
       mockRedis.set.mockResolvedValue('OK');
 
       const result = await service.getUserPermissions('tenant-1', 'user-1');
@@ -88,10 +91,30 @@ describe('PermissionService', () => {
         'EX',
         60,
       );
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('should fall back to legacy role mapping when membership rows are missing', async () => {
+      mockRedis.get.mockResolvedValue(null);
+      mockPrisma.userTenantRole.findMany.mockResolvedValue([]);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        role: 'SUPER_ADMIN',
+      });
+      mockPrisma.role.findFirst.mockResolvedValue({
+        id: 'role-1',
+        name: RoleName.SUPER_ADMIN,
+        permissions: [{ permission: { code: 'tenant:manage' } }],
+      });
+
+      const result = await service.getUserPermissions('tenant-1', 'user-1');
+
+      expect(result).toEqual(['tenant:manage']);
     });
 
     it('should return empty array when user not found', async () => {
       mockRedis.get.mockResolvedValue(null);
+      mockPrisma.userTenantRole.findMany.mockResolvedValue([]);
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
       const result = await service.getUserPermissions('tenant-1', 'user-1');
@@ -101,6 +124,7 @@ describe('PermissionService', () => {
 
     it('should return empty array when user role has no mapping', async () => {
       mockRedis.get.mockResolvedValue(null);
+      mockPrisma.userTenantRole.findMany.mockResolvedValue([]);
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'user-1',
         role: 'USER',
@@ -114,6 +138,7 @@ describe('PermissionService', () => {
 
     it('should return empty array when role not found', async () => {
       mockRedis.get.mockResolvedValue(null);
+      mockPrisma.userTenantRole.findMany.mockResolvedValue([]);
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 'user-1',
         role: 'TENANT_ADMIN',
@@ -138,9 +163,13 @@ describe('PermissionService', () => {
 
   describe('invalidateRolePermissions', () => {
     it('should invalidate permissions for all users with the role', async () => {
+      mockPrisma.userTenantRole.findMany.mockResolvedValue([
+        { userId: 'user-1' },
+        { userId: 'user-2' },
+      ]);
       mockPrisma.user.findMany.mockResolvedValue([
-        { id: 'user-1', role: 'TENANT_ADMIN' },
         { id: 'user-2', role: 'TENANT_ADMIN' },
+        { id: 'user-3', role: 'TENANT_ADMIN' },
       ]);
 
       await service.invalidateRolePermissions(
@@ -148,10 +177,21 @@ describe('PermissionService', () => {
         RoleName.TENANT_ADMIN,
       );
 
+      expect(mockPrisma.userTenantRole.findMany).toHaveBeenCalledWith({
+        where: {
+          tenantId: 'tenant-1',
+          role: {
+            name: RoleName.TENANT_ADMIN,
+          },
+        },
+        select: { userId: true },
+        distinct: ['userId'],
+      });
       expect(mockPrisma.user.findMany).toHaveBeenCalledWith({
         where: { tenantId: 'tenant-1', role: RoleName.TENANT_ADMIN },
+        select: { id: true },
       });
-      expect(mockRedis.del).toHaveBeenCalledTimes(2);
+      expect(mockRedis.del).toHaveBeenCalledTimes(3);
     });
   });
 });

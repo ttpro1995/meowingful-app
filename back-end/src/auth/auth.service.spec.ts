@@ -34,6 +34,10 @@ describe('AuthService', () => {
       findFirst: jest.fn(),
       delete: jest.fn(),
     },
+    userTenantRole: {
+      createMany: jest.fn(),
+      findFirst: jest.fn(),
+    },
     auth: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
@@ -45,6 +49,9 @@ describe('AuthService', () => {
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+    },
+    role: {
+      upsert: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -66,6 +73,28 @@ describe('AuthService', () => {
 
     authService = module.get<AuthService>(AuthService);
     mockPrismaService.tenant.findUnique.mockResolvedValue(defaultTenant);
+    mockPrismaService.role.upsert.mockResolvedValue({
+      id: 'role-1',
+      tenantId: defaultTenant.id,
+      name: 'DEVELOPER',
+    });
+    mockPrismaService.userTenantRole.createMany.mockResolvedValue({ count: 1 });
+    mockPrismaService.userTenantRole.findFirst.mockResolvedValue({
+      userId: 'user-uuid',
+    });
+    mockPrismaService.$transaction.mockImplementation(
+      async (
+        arg:
+          | ((tx: typeof mockPrismaService) => Promise<unknown>)
+          | Promise<unknown>,
+      ) => {
+        if (typeof arg === 'function') {
+          return arg(mockPrismaService);
+        }
+
+        return arg;
+      },
+    );
   });
 
   afterEach(() => {
@@ -95,25 +124,6 @@ describe('AuthService', () => {
       };
       mockPrismaService.user.create.mockResolvedValue(newUser);
       mockPrismaService.auth.create.mockResolvedValue({});
-
-      mockPrismaService.$transaction.mockImplementation(
-        async (
-          fn: (arg: typeof mockPrismaService) => Promise<{
-            id: string;
-            tenantId: string;
-            username: string;
-            name: string;
-            bio: null;
-            role: string;
-            email: null;
-            deletedAt: null;
-            createdAt: Date;
-            updatedAt: Date;
-          }>,
-        ) => {
-          return fn(mockPrismaService);
-        },
-      );
 
       const result = await authService.register(registerInput);
 

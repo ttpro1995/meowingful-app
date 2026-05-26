@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, UserRole } from '@prisma/client';
+import { Prisma, RoleName, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { randomUUID } from 'crypto';
@@ -82,6 +82,79 @@ export class AuthService {
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
+  }
+
+  private mapUserRoleToRoleName(role: UserRole): RoleName {
+    switch (role) {
+      case UserRole.SUPER_ADMIN:
+        return RoleName.SUPER_ADMIN;
+      case UserRole.TENANT_ADMIN:
+        return RoleName.TENANT_ADMIN;
+      default:
+        return RoleName.DEVELOPER;
+    }
+  }
+
+  private async ensureMembershipForUserTx(
+    tx: Prisma.TransactionClient,
+    user: {
+      id: string;
+      tenantId: string;
+      role: UserRole;
+    },
+  ): Promise<void> {
+    const roleName = this.mapUserRoleToRoleName(user.role);
+    const role = await tx.role.upsert({
+      where: {
+        tenantId_name: {
+          tenantId: user.tenantId,
+          name: roleName,
+        },
+      },
+      update: {},
+      create: {
+        tenantId: user.tenantId,
+        name: roleName,
+      },
+    });
+
+    await tx.userTenantRole.createMany({
+      data: [
+        {
+          userId: user.id,
+          tenantId: user.tenantId,
+          roleId: role.id,
+        },
+      ],
+      skipDuplicates: true,
+    });
+  }
+
+  private async ensureMembershipForUser(user: {
+    id: string;
+    tenantId: string;
+    role: UserRole;
+  }): Promise<void> {
+    await this.prisma.$transaction((tx) =>
+      this.ensureMembershipForUserTx(tx, user),
+    );
+  }
+
+  private async userHasTenantMembership(
+    userId: string,
+    tenantId: string,
+  ): Promise<boolean> {
+    const membership = await this.prisma.userTenantRole.findFirst({
+      where: {
+        userId,
+        tenantId,
+      },
+      select: {
+        userId: true,
+      },
+    });
+
+    return !!membership;
   }
 
   private async resolveTenantBySlug(tenantSlug?: string) {
@@ -181,6 +254,8 @@ export class AuthService {
       user.role === UserRole.SUPER_ADMIN,
     );
 
+    await this.ensureMembershipForUser(user);
+
     const tokenPair = await this.generateTokenPair(
       user.id,
       user.tenantId,
@@ -240,6 +315,8 @@ export class AuthService {
         },
       });
 
+      await this.ensureMembershipForUserTx(tx, newUser);
+
       return newUser;
     });
 
@@ -275,6 +352,8 @@ export class AuthService {
     if (!isValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
+
+    await this.ensureMembershipForUser(auth.user);
 
     const tokenPair = await this.generateTokenPair(
       auth.userId,
@@ -313,8 +392,17 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
-    if (user.tenantId !== payload.tenantId) {
+    const hasMembership = await this.userHasTenantMembership(
+      payload.sub,
+      payload.tenantId,
+    );
+
+    if (!hasMembership && user.tenantId !== payload.tenantId) {
       throw new UnauthorizedException('Invalid tenant context');
+    }
+
+    if (!hasMembership && user.tenantId === payload.tenantId) {
+      await this.ensureMembershipForUser(user);
     }
 
     await this.ensureTenantIsActive(
@@ -331,7 +419,48 @@ export class AuthService {
     return {
       accessToken: tokenPair.accessToken,
       refreshToken: tokenPair.refreshToken,
-      user: this.mapUser(user),
+      user: {
+        ...this.mapUser(user),
+        tenantId: payload.tenantId,
+      },
+    };
+  }
+
+  async switchTenant(
+    userId: string,
+    tenantId: string,
+  ): Promise<SessionAuthPayload> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    const hasMembership = await this.userHasTenantMembership(userId, tenantId);
+    if (!hasMembership) {
+      throw new UnauthorizedException('UNAUTHORIZED');
+    }
+
+    await this.ensureTenantIsActive(
+      tenantId,
+      user.role === UserRole.SUPER_ADMIN,
+    );
+
+    const tokenPair = await this.generateTokenPair(
+      user.id,
+      tenantId,
+      user.role,
+    );
+
+    return {
+      accessToken: tokenPair.accessToken,
+      refreshToken: tokenPair.refreshToken,
+      user: {
+        ...this.mapUser(user),
+        tenantId,
+      },
     };
   }
 
