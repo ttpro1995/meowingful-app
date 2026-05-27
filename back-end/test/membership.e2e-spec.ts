@@ -10,7 +10,18 @@ import { PrismaService } from './../src/prisma/prisma.service';
 
 interface GraphQLResponse<T = Record<string, unknown>> {
   data?: T;
-  errors?: Array<{ message: string }>;
+  errors?: Array<{
+    message: string;
+    extensions?: {
+      code?: string;
+      field?: string;
+      errors?: Array<{
+        code: string;
+        message: string;
+        field?: string;
+      }>;
+    };
+  }>;
 }
 
 describe('Membership (e2e)', () => {
@@ -596,5 +607,97 @@ describe('Membership (e2e)', () => {
     expect(switchAfterRemoval.errors?.[0].message).toContain('UNAUTHORIZED');
 
     expect(adminUser.id).toBeDefined();
+  });
+
+  it('returns standardized VALIDATION_ERROR for invalid members query and inviteMember input', async () => {
+    await ensurePermission('tenant:manage', 'Manage tenant');
+
+    const tenant = await prismaService.tenant.create({
+      data: {
+        name: `${testSlugPrefix}-validation`,
+        slug: `${testSlugPrefix}-validation`,
+        contactEmail: `${testSlugPrefix}-validation@example.com`,
+      },
+    });
+
+    const roles = await seedTenantRoles(tenant.id);
+
+    const validationAdminUsername = `mval${String(uniquePart).slice(-6)}`;
+
+    await createUserWithAuthAndMembership({
+      tenantId: tenant.id,
+      username: validationAdminUsername,
+      name: 'Validation Admin',
+      email: `${testEmailPrefix}-validation-admin@example.com`,
+      userRole: UserRole.TENANT_ADMIN,
+      membershipRoleId: roles.TENANT_ADMIN.id,
+    });
+
+    const accessToken = await loginAndGetToken({
+      username: validationAdminUsername,
+      tenantSlug: tenant.slug,
+    });
+
+    const invalidMembersQuery = await executeGraphQL<{
+      members: null;
+    }>({
+      query: `
+        query Members($query: MembersQueryInput) {
+          members(query: $query) {
+            totalCount
+          }
+        }
+      `,
+      variables: {
+        query: {
+          pagination: {
+            page: 1,
+            limit: 200,
+          },
+        },
+      },
+      accessToken,
+    });
+
+    expect(invalidMembersQuery.errors).toBeDefined();
+    expect(invalidMembersQuery.errors?.[0].extensions?.code).toBe(
+      'VALIDATION_ERROR',
+    );
+    expect(
+      invalidMembersQuery.errors?.[0].extensions?.errors?.[0].field,
+    ).toBe('pagination.limit');
+
+    const invalidInviteMember = await executeGraphQL<{
+      inviteMember: null;
+    }>({
+      query: `
+        mutation InviteMember($input: InviteMemberInput!) {
+          inviteMember(input: $input) {
+            invitation {
+              id
+            }
+          }
+        }
+      `,
+      variables: {
+        input: {
+          email: 'not-an-email',
+          roleId: '',
+        },
+      },
+      accessToken,
+    });
+
+    expect(invalidInviteMember.errors).toBeDefined();
+    expect(invalidInviteMember.errors?.[0].extensions?.code).toBe(
+      'VALIDATION_ERROR',
+    );
+
+    const fields =
+      invalidInviteMember.errors?.[0].extensions?.errors?.map(
+        (entry) => entry.field,
+      ) ?? [];
+    expect(fields).toContain('email');
+    expect(fields).toContain('roleId');
   });
 });

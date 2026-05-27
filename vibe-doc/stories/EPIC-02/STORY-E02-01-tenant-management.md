@@ -7,13 +7,13 @@
 - **Status**: Done ✓
 - **Created**: 2026-05-24
 - **Completed**: 2026-05-24
-- **Related**: vibe-doc/epic-plan.md, vibe-doc/architecture.md
+- **Related**: vibe-doc/epic-plan.md, vibe-doc/architecture.md, vibe-doc/stories/EPIC-01/STORY-E01-07-api-standardization.md
 
 ## User Story
 As a platform super-admin, I want to create and manage organizations (tenants) so that each organization operates in complete data isolation from others on the shared platform.
 
 ## Context
-The platform must support multiple independent organizations (English schools, training centers, etc.) sharing one deployment but seeing only their own data. Every subsequent feature — CRM, e-learning, notifications — must scope queries by tenant. Establishing the tenant entity and the request-scoping mechanism is therefore the highest-priority prerequisite for all of EPIC-02 through EPIC-05.
+The platform must support multiple independent organizations (English schools, training centers, etc.) sharing one deployment but seeing only their own data. Every subsequent feature — CRM, e-learning, notifications — must scope queries by tenant. Establishing the tenant entity and the request-scoping mechanism is therefore the highest-priority prerequisite for all of EPIC-02 through EPIC-05. This story also adopts STORY-E01-07 API contracts so tenant list APIs behave consistently with platform-wide pagination/filtering/error standards.
 
 ## Requirements
 
@@ -24,17 +24,22 @@ The platform must support multiple independent organizations (English schools, t
 - [x] All domain entities (users, leads, courses, etc.) include a `tenantId` foreign key
 - [x] Queries are automatically scoped to the caller's tenant — cross-tenant data leakage is impossible at the ORM layer
 - [x] Super-admin role can query across tenants (for platform administration)
+- [x] `tenants` list query follows STORY-E01-07 (`pagination`, `orderBy`, shared filter types, `PaginatedResult` + `pageInfo`)
+- [x] Tenant API errors are exposed through standardized GraphQL `UserError` shape/codes from STORY-E01-07
 
 ### Non-Functional Requirements
 - [x] Tenant resolution adds < 2ms overhead per request (resolved from JWT claim, not a DB lookup)
 - [ ] Adding `tenantId` to a new entity is documented and enforced via a shared Prisma base pattern
 - [x] Deactivating a tenant prevents all logins for users of that tenant
+- [x] Tenant list `limit` defaults to 20 and is capped at 100 via shared pagination primitives
 
 ## Acceptance Criteria
 - [x] Two tenants with identical usernames cannot see each other's data — verified in integration test
 - [x] A request without a valid tenant context returns `UNAUTHORIZED`
 - [x] Deactivating tenant A does not affect tenant B's users
 - [x] Super-admin can list all tenants with counts (users, active courses)
+- [x] Requesting tenant list with `pagination.limit > 100` is rejected by validation with standardized error payload
+- [x] Invalid tenant mutation input returns `VALIDATION_ERROR` with field-level details
 - [ ] New Prisma models added by future stories include `tenantId` by convention (documented)
 
 ## Technical Specifications
@@ -44,6 +49,7 @@ The platform must support multiple independent organizations (English schools, t
 - **Backend**: `TenantModule` (global); `TenantContext` injected via `REQUEST` scope
 - **Auth**: JWT payload includes `tenantId`; `TenantGuard` resolves and validates it
 - **GraphQL**: `TenantLoader` service provides the scoped tenant object to resolvers
+- **Shared Standards**: Reuses STORY-E01-07 pagination/filter contracts and global GraphQL error standardization
 
 ### Prisma Schema
 ```prisma
@@ -146,3 +152,11 @@ export class TenantContext {
 - **Migrations**: `20260524093000_add_tenants_and_isolation/migration.sql` - Creates Tenant table, adds `tenantId` to User/Auth, backfills existing users to default tenant.
 
 - **Tests**: Unit tests for `TenantGuard` and `TenantService`; E2E tests for tenant isolation, deactivated tenant blocking, and super-admin tenant listing.
+
+### E01-07 Alignment Revisit (2026-05-27)
+- ✅ `tenants(query)` uses `TenantsQueryInput` with `PaginationArgs`, `OrderByArgs`, and shared filter inputs.
+- ✅ `tenants` response returns `PaginatedTenants` with `pageInfo { total, page, limit, totalPages }`.
+- ✅ Tenant resolver exceptions flow through global `formatGraphQLError`, producing standardized `UserError` codes (`VALIDATION_ERROR`, `FORBIDDEN`, `UNAUTHORIZED`, `INTERNAL_ERROR`).
+- ✅ Added e2e assertions for E01-07 validation behavior in `back-end/test/tenant.e2e-spec.ts`:
+  - `pagination.limit > 100` returns standardized `VALIDATION_ERROR`.
+  - Invalid `createTenant` input returns field-level validation errors (`slug`, `contactEmail`).

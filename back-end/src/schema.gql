@@ -145,6 +145,13 @@ type PaginatedMembers {
   totalCount: Int!
 }
 
+type PaginatedRolePermissions {
+  data: [RolePermissionsMatrix!]!
+  pageInfo: PageInfo!
+  rolePermissions: [RolePermissionsMatrix!]!
+  totalCount: Int!
+}
+
 type PaginatedTenants {
   data: [TenantListItem!]!
   pageInfo: PageInfo!
@@ -171,7 +178,7 @@ type Query {
   myPermissions: [String!]!
   myTenant: Tenant!
   myTenants: MyTenantsPayload!
-  rolePermissions(tenantId: String!): [RolePermissionsMatrix!]!
+  rolePermissions(query: RolePermissionsQueryInput, tenantId: String!): PaginatedRolePermissions!
   tenants(query: TenantsQueryInput): PaginatedTenants!
   users(query: UsersQueryInput): PaginatedUsers!
 }
@@ -196,9 +203,20 @@ enum RoleName {
   TENANT_ADMIN
 }
 
+input RolePermissionsFilterInput {
+  permissionCode: StringFilter
+  roleName: EnumFilter
+}
+
 type RolePermissionsMatrix {
   permissions: [String!]!
   roleName: RoleName!
+}
+
+input RolePermissionsQueryInput {
+  filter: RolePermissionsFilterInput
+  orderBy: OrderByArgs
+  pagination: PaginationArgs
 }
 
 enum SortDirection {

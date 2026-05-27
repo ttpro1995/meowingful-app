@@ -6,13 +6,13 @@
 - **Priority**: High
 - **Status**: Ready for Review
 - **Created**: 2026-05-24
-- **Related**: vibe-doc/epic-plan.md, vibe-doc/architecture.md
+- **Related**: vibe-doc/epic-plan.md, vibe-doc/architecture.md, vibe-doc/stories/EPIC-01/STORY-E01-07-api-standardization.md
 
 ## User Story
 As a tenant admin, I want to invite users into my organization and assign them roles so that each team member has the appropriate level of access.
 
 ## Context
-Currently every user belongs to exactly one tenant (set at registration). In practice, a consultant or instructor may work across multiple tenants. This story introduces the many-to-many `UserTenantRole` join that properly models membership, enables invitation-based onboarding, and wires roles to users so the RBAC framework (E02-02) can resolve permissions.
+Currently every user belongs to exactly one tenant (set at registration). In practice, a consultant or instructor may work across multiple tenants. This story introduces the many-to-many `UserTenantRole` join that properly models membership, enables invitation-based onboarding, and wires roles to users so the RBAC framework (E02-02) can resolve permissions. Membership list and error contracts should follow STORY-E01-07 so tenant admin UX remains consistent with other modules.
 
 ## Requirements
 
@@ -23,11 +23,13 @@ Currently every user belongs to exactly one tenant (set at registration). In pra
 - [x] Tenant admin can update a member's role or remove them from the tenant
 - [x] A user can belong to multiple tenants; they select the active tenant at login or switch post-login
 - [x] Removing a user from a tenant revokes all their permissions in that tenant immediately
+- [x] `members` query follows STORY-E01-07 contract (`pagination`, `orderBy`, shared filters, paginated payload)
 
 ### Non-Functional Requirements
 - [x] Invitation token is a signed JWT (short-lived, not stored in DB except as hash for revocation)
 - [x] Role changes take effect within the Redis cache TTL (60s, see E02-02)
 - [x] Pagination on member list follows STORY-E01-07 standard
+- [x] Membership API errors are exposed via standardized GraphQL `UserError` extensions from STORY-E01-07
 
 ## Acceptance Criteria
 - [x] Admin invites user@example.com; user receives an email with an accept link
@@ -35,6 +37,7 @@ Currently every user belongs to exactly one tenant (set at registration). In pra
 - [x] Admin assigns `SALES_MANAGER` role; user can immediately use sales-gated endpoints (within 60s)
 - [x] Admin removes a user; their next request returns `UNAUTHORIZED`
 - [x] User who belongs to tenant A and tenant B can switch context without re-authenticating
+- [x] Invalid membership query/mutation input returns standardized `VALIDATION_ERROR` details
 
 ## Technical Specifications
 
@@ -42,6 +45,7 @@ Currently every user belongs to exactly one tenant (set at registration). In pra
 - **Prisma**: New `UserTenantRole` join table; `Invitation` model
 - **Backend**: `MembershipModule`; `InvitationService`; tenant-switch mutation
 - **Auth**: JWT `tenantId` claim updated on tenant switch (new short-lived JWT issued)
+- **Shared Standards**: Reuses STORY-E01-07 pagination/filter primitives and global GraphQL error formatting
 
 ### Prisma Schema
 ```prisma
@@ -88,7 +92,7 @@ mutation switchTenant(tenantId: ID!): AuthPayload
 
 ### Step 3: Membership Management API
 - Queries: `members(pagination)` — list tenant members with their roles
-- Mutations: `updateMemberRole(userId, roleId)`, `removeMember(userId)`
+- Mutations: `updateMemberRoles(userId, roleIds)`, `removeMember(userId)`
 - On role change: invalidate Redis permission cache for that user
 
 ### Step 4: Tenant Switch
@@ -117,7 +121,7 @@ mutation switchTenant(tenantId: ID!): AuthPayload
   - Migration added at `back-end/prisma/migrations/20260526103000_story_e02_03_membership_and_invitation`.
 - ✅ New backend `MembershipModule` implemented:
   - `inviteMember`, `acceptInvitation`, `declineInvitation`
-  - `members` query with cursor pagination (`first/last/after/before`)
+  - `members` query with STORY-E01-07 style page/limit pagination, `orderBy`, and filter inputs (legacy cursor args retained as deprecated compatibility fields)
   - `updateMemberRoles` (multi-role assignment) and `removeMember`
   - `myTenants` query for tenant membership listing
 - ✅ Auth flow extended with `switchTenant(tenantId)` mutation:
@@ -143,6 +147,14 @@ mutation switchTenant(tenantId: ID!): AuthPayload
   - Added tenant switcher UX in profile with `myTenants` + `switchTenant` wiring.
   - Added invitation response page (`/invite`) with accept/decline actions and login redirect flow for token links.
   - Added/updated frontend unit tests for tenant switching and invitation handling.
+
+### E01-07 Alignment Revisit (2026-05-27)
+- ✅ `members` endpoint uses shared `PaginationArgs`, `OrderByArgs`, and filter types, returning paginated metadata (`pageInfo`).
+- ✅ Membership flows now inherit standardized GraphQL `UserError` formatting (`VALIDATION_ERROR`, `FORBIDDEN`, `UNAUTHORIZED`, `INTERNAL_ERROR`).
+- ✅ Added e2e assertions in `back-end/test/membership.e2e-spec.ts` to verify standardized validation responses for:
+  - invalid `members` pagination input (`pagination.limit > 100`),
+  - invalid `inviteMember` input (email/roleId).
+- ⚠️ `myTenants` remains a direct per-user list (non-paginated). Keep as-is for now due bounded per-user scope; migrate to paginated contract if tenant memberships grow materially.
 
 ### Remaining for Story Completion
 

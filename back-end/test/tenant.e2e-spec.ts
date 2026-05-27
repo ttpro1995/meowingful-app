@@ -8,7 +8,18 @@ import { PrismaService } from './../src/prisma/prisma.service';
 
 interface GraphQLResponse<T = Record<string, unknown>> {
   data?: T;
-  errors?: Array<{ message: string }>;
+  errors?: Array<{
+    message: string;
+    extensions?: {
+      code?: string;
+      field?: string;
+      errors?: Array<{
+        code: string;
+        message: string;
+        field?: string;
+      }>;
+    };
+  }>;
 }
 
 describe('TenantManagement (e2e)', () => {
@@ -553,6 +564,156 @@ describe('TenantManagement (e2e)', () => {
         expect(
           body.data?.tenants.tenants.some((tenant) => tenant.userCount >= 0),
         ).toBe(true);
+      });
+  });
+
+  it('returns standardized VALIDATION_ERROR for invalid tenants pagination and tenant input', async () => {
+    const defaultTenant = await prismaService.tenant.findUnique({
+      where: { slug: 'default' },
+    });
+
+    expect(defaultTenant).toBeDefined();
+    if (!defaultTenant) {
+      throw new Error('Default tenant must exist for validation test');
+    }
+
+    const username = `tval${String(uniquePart).slice(-6)}`;
+    const passwordHash = await bcrypt.hash('password123', 10);
+
+    const superAdmin = await prismaService.user.create({
+      data: {
+        tenantId: defaultTenant.id,
+        username,
+        name: 'Super Admin Validation',
+        role: 'SUPER_ADMIN',
+      },
+    });
+
+    await prismaService.auth.create({
+      data: {
+        userId: superAdmin.id,
+        tenantId: defaultTenant.id,
+        username,
+        passwordHash,
+        salt: 'seeded',
+      },
+    });
+
+    const superAdminRole = await prismaService.role.upsert({
+      where: {
+        tenantId_name: {
+          tenantId: defaultTenant.id,
+          name: 'SUPER_ADMIN',
+        },
+      },
+      update: {},
+      create: {
+        tenantId: defaultTenant.id,
+        name: 'SUPER_ADMIN',
+      },
+    });
+
+    await prismaService.userTenantRole.createMany({
+      data: [
+        {
+          userId: superAdmin.id,
+          tenantId: defaultTenant.id,
+          roleId: superAdminRole.id,
+        },
+      ],
+      skipDuplicates: true,
+    });
+
+    const loginRes = await request(
+      app.getHttpServer() as Parameters<typeof request>[0],
+    )
+      .post('/graphql')
+      .send({
+        query: `
+          mutation Login($input: LoginInput!) {
+            login(input: $input) {
+              accessToken
+            }
+          }
+        `,
+        variables: {
+          input: {
+            username,
+            password: 'password123',
+            tenantSlug: 'default',
+          },
+        },
+      })
+      .expect(200);
+
+    const accessToken = (loginRes.body as GraphQLResponse<{
+      login: { accessToken: string };
+    }>).data?.login.accessToken;
+    expect(accessToken).toBeDefined();
+
+    await request(app.getHttpServer() as Parameters<typeof request>[0])
+      .post('/graphql')
+      .set('Authorization', `Bearer ${accessToken ?? ''}`)
+      .send({
+        query: `
+          query Tenants($query: TenantsQueryInput) {
+            tenants(query: $query) {
+              totalCount
+            }
+          }
+        `,
+        variables: {
+          query: {
+            pagination: {
+              page: 1,
+              limit: 200,
+            },
+          },
+        },
+      })
+      .expect(200)
+      .expect((res: request.Response) => {
+        const body = res.body as GraphQLResponse<{ tenants: null }>;
+        expect(body.errors).toBeDefined();
+
+        const firstError = body.errors?.[0];
+        expect(firstError?.extensions?.code).toBe('VALIDATION_ERROR');
+        expect(firstError?.extensions?.errors?.[0].field).toBe(
+          'pagination.limit',
+        );
+      });
+
+    await request(app.getHttpServer() as Parameters<typeof request>[0])
+      .post('/graphql')
+      .set('Authorization', `Bearer ${accessToken ?? ''}`)
+      .send({
+        query: `
+          mutation CreateTenant($input: CreateTenantInput!) {
+            createTenant(input: $input) {
+              id
+            }
+          }
+        `,
+        variables: {
+          input: {
+            name: '',
+            slug: 'Invalid Slug',
+            contactEmail: 'not-an-email',
+          },
+        },
+      })
+      .expect(200)
+      .expect((res: request.Response) => {
+        const body = res.body as GraphQLResponse<{ createTenant: null }>;
+        expect(body.errors).toBeDefined();
+
+        const firstError = body.errors?.[0];
+        expect(firstError?.extensions?.code).toBe('VALIDATION_ERROR');
+
+        const fields =
+          firstError?.extensions?.errors?.map((entry) => entry.field) ?? [];
+        expect(fields).toContain('contactEmail');
+        expect(fields).toContain('slug');
       });
   });
 });

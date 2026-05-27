@@ -1,7 +1,8 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { TenantService } from './tenant.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { getTenantContext } from './tenant-context.storage';
+import { SortDirection } from '../shared/pagination/pagination.args';
 
 jest.mock('./tenant-context.storage', () => ({
   getTenantContext: jest.fn(),
@@ -111,5 +112,58 @@ describe('TenantService', () => {
     expect(result.data.length).toBe(2);
     expect(result.tenants[0].userCount).toBe(2);
     expect(result.tenants[1].userCount).toBe(5);
+  });
+
+  it('throws BadRequestException for unsupported tenants orderBy field', async () => {
+    (getTenantContext as jest.Mock).mockReturnValue({
+      tenantId: 'tenant-admin',
+      isSuperAdmin: true,
+    });
+
+    await expect(
+      service.tenants({
+        orderBy: {
+          field: 'invalidField',
+          direction: SortDirection.ASC,
+        },
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('clamps pagination.limit to max 100 in tenant list payload', async () => {
+    (getTenantContext as jest.Mock).mockReturnValue({
+      tenantId: 'tenant-admin',
+      isSuperAdmin: true,
+    });
+
+    mockPrismaService.tenant.count = jest.fn().mockResolvedValue(1);
+    mockPrismaService.tenant.findMany = jest.fn().mockResolvedValue([
+      {
+        id: 'tenant-1',
+        name: 'Tenant 1',
+        slug: 'tenant-1',
+        planTier: 'basic',
+        contactEmail: 'owner@tenant-1.test',
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+    mockPrismaService.user.count = jest.fn().mockResolvedValue(1);
+
+    const result = await service.tenants({
+      pagination: {
+        page: 1,
+        limit: 200,
+      },
+    });
+
+    expect(result.pageInfo.limit).toBe(100);
+    expect(mockPrismaService.tenant.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skip: 0,
+        take: 100,
+      }),
+    );
   });
 });
