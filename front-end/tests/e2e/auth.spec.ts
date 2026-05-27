@@ -1,10 +1,21 @@
 import { test, expect } from '@playwright/test';
+import { setupGraphqlMock } from './graphql-mock';
+
+function buildUsername(prefix: string): string {
+  return `${prefix}${Date.now().toString(36)}${Math.random()
+    .toString(36)
+    .slice(2, 6)}`;
+}
 
 test.describe('Auth E2E', () => {
+  test.beforeEach(async ({ page }) => {
+    await setupGraphqlMock(page);
+  });
+
   test('should register a new user', async ({ page }) => {
     await page.goto('/register');
 
-    const username = `testuser_${Date.now()}`;
+    const username = buildUsername('testuser');
     
     await page.fill('input#username', username);
     await page.fill('input#name', 'Test User');
@@ -18,7 +29,7 @@ test.describe('Auth E2E', () => {
 
   test('should login with valid credentials', async ({ page }) => {
     // First register a user to login with
-    const username = `loginuser_${Date.now()}`;
+    const username = buildUsername('loginuser');
     await page.goto('/register');
     await page.fill('input#username', username);
     await page.fill('input#name', 'Login Test User');

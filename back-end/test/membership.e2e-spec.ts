@@ -663,9 +663,9 @@ describe('Membership (e2e)', () => {
     expect(invalidMembersQuery.errors?.[0].extensions?.code).toBe(
       'VALIDATION_ERROR',
     );
-    expect(
-      invalidMembersQuery.errors?.[0].extensions?.errors?.[0].field,
-    ).toBe('pagination.limit');
+    expect(invalidMembersQuery.errors?.[0].extensions?.errors?.[0].field).toBe(
+      'pagination.limit',
+    );
 
     const invalidInviteMember = await executeGraphQL<{
       inviteMember: null;

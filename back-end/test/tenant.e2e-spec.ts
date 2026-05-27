@@ -646,9 +646,11 @@ describe('TenantManagement (e2e)', () => {
       })
       .expect(200);
 
-    const accessToken = (loginRes.body as GraphQLResponse<{
-      login: { accessToken: string };
-    }>).data?.login.accessToken;
+    const accessToken = (
+      loginRes.body as GraphQLResponse<{
+        login: { accessToken: string };
+      }>
+    ).data?.login.accessToken;
     expect(accessToken).toBeDefined();
 
     await request(app.getHttpServer() as Parameters<typeof request>[0])
