@@ -76,7 +76,7 @@ describe('TenantService', () => {
       isSuperAdmin: true,
     });
 
-    mockPrismaService.tenant.findMany = jest.fn().mockResolvedValue([
+    const findManyMock = jest.fn().mockResolvedValue([
       {
         id: 'tenant-1',
         name: 'Tenant 1',
@@ -98,6 +98,7 @@ describe('TenantService', () => {
         updatedAt: new Date(),
       },
     ]);
+    mockPrismaService.tenant.findMany = findManyMock;
 
     mockPrismaService.user.count = jest
       .fn()
@@ -137,7 +138,7 @@ describe('TenantService', () => {
     });
 
     mockPrismaService.tenant.count = jest.fn().mockResolvedValue(1);
-    mockPrismaService.tenant.findMany = jest.fn().mockResolvedValue([
+    const findManyMock = jest.fn().mockResolvedValue([
       {
         id: 'tenant-1',
         name: 'Tenant 1',
@@ -149,6 +150,7 @@ describe('TenantService', () => {
         updatedAt: new Date(),
       },
     ]);
+    mockPrismaService.tenant.findMany = findManyMock;
     mockPrismaService.user.count = jest.fn().mockResolvedValue(1);
 
     const result = await service.tenants({
@@ -159,7 +161,7 @@ describe('TenantService', () => {
     });
 
     expect(result.pageInfo.limit).toBe(100);
-    expect(mockPrismaService.tenant.findMany).toHaveBeenCalledWith(
+    expect(findManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         skip: 0,
         take: 100,

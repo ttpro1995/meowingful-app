@@ -1,12 +1,23 @@
 import { test, expect } from '@playwright/test';
+import { setupGraphqlMock } from './graphql-mock';
+
+function buildUsername(prefix: string): string {
+  return `${prefix}${Date.now().toString(36)}${Math.random()
+    .toString(36)
+    .slice(2, 6)}`;
+}
 
 test.describe.configure({ mode: 'serial' });
 
 test.describe('Profile E2E', () => {
   test.beforeEach(async ({ page }) => {
+    await setupGraphqlMock(page);
+  });
+
+  test.beforeEach(async ({ page }) => {
     // Register a new user for profile tests
     await page.goto('/register');
-    const username = `profileuser_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    const username = buildUsername('profileuser');
     
     await page.fill('input#username', username);
     await page.fill('input#name', 'Profile Test User');

@@ -31,6 +31,7 @@ describe('AuthService', () => {
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
       count: jest.fn(),
       findFirst: jest.fn(),
       delete: jest.fn(),
@@ -417,11 +418,16 @@ describe('AuthService', () => {
         bio: 'Updated bio',
       };
 
-      mockPrismaService.user.update.mockResolvedValue({
+      mockPrismaService.user.updateMany.mockResolvedValue({ count: 1 });
+      mockPrismaService.user.findFirst.mockResolvedValue({
         id: userId,
+        tenantId: defaultTenant.id,
+        role: 'USER',
         username: 'testuser',
         name: updateInput.name,
         bio: updateInput.bio,
+        email: null,
+        deletedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -438,11 +444,16 @@ describe('AuthService', () => {
         name: 'Only Name Update',
       };
 
-      mockPrismaService.user.update.mockResolvedValue({
+      mockPrismaService.user.updateMany.mockResolvedValue({ count: 1 });
+      mockPrismaService.user.findFirst.mockResolvedValue({
         id: userId,
+        tenantId: defaultTenant.id,
+        role: 'USER',
         username: 'testuser',
         name: updateInput.name,
         bio: null,
+        email: null,
+        deletedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -458,11 +469,16 @@ describe('AuthService', () => {
         bio: 'Only bio update',
       };
 
-      mockPrismaService.user.update.mockResolvedValue({
+      mockPrismaService.user.updateMany.mockResolvedValue({ count: 1 });
+      mockPrismaService.user.findFirst.mockResolvedValue({
         id: userId,
+        tenantId: defaultTenant.id,
+        role: 'USER',
         username: 'testuser',
         name: 'Test User',
         bio: updateInput.bio,
+        email: null,
+        deletedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -482,12 +498,16 @@ describe('AuthService', () => {
         email: 'test@example.com',
       };
 
-      mockPrismaService.user.update.mockResolvedValue({
+      mockPrismaService.user.updateMany.mockResolvedValue({ count: 1 });
+      mockPrismaService.user.findFirst.mockResolvedValue({
         id: userId,
+        tenantId: defaultTenant.id,
+        role: 'USER',
         username: 'testuser',
         name: updateInput.name,
         bio: updateInput.bio,
         email: updateInput.email,
+        deletedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -507,12 +527,16 @@ describe('AuthService', () => {
         email: undefined,
       };
 
-      mockPrismaService.user.update.mockResolvedValue({
+      mockPrismaService.user.updateMany.mockResolvedValue({ count: 1 });
+      mockPrismaService.user.findFirst.mockResolvedValue({
         id: userId,
+        tenantId: defaultTenant.id,
+        role: 'USER',
         username: 'testuser',
         name: updateInput.name,
         bio: updateInput.bio,
         email: null,
+        deletedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -531,12 +555,16 @@ describe('AuthService', () => {
         email: 'onlyemail@example.com',
       };
 
-      mockPrismaService.user.update.mockResolvedValue({
+      mockPrismaService.user.updateMany.mockResolvedValue({ count: 1 });
+      mockPrismaService.user.findFirst.mockResolvedValue({
         id: userId,
+        tenantId: defaultTenant.id,
+        role: 'USER',
         username: 'testuser',
         name: 'Existing Name',
         bio: 'Existing Bio',
         email: 'onlyemail@example.com',
+        deletedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       });

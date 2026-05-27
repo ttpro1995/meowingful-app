@@ -515,13 +515,25 @@ export class AuthService {
   async updateUser(userId: string, input: UpdateUserInput) {
     const { name, bio } = input;
 
-    const user = await this.prisma.user.update({
+    const updateResult = await this.prisma.user.updateMany({
       where: { id: userId },
       data: {
         name,
         bio,
       },
     });
+
+    if (updateResult.count === 0) {
+      throw new BadRequestException('User not found');
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
 
     return {
       ...this.mapUser(user),
@@ -537,10 +549,22 @@ export class AuthService {
       data.email = email;
     }
 
-    const user = await this.prisma.user.update({
+    const updateResult = await this.prisma.user.updateMany({
       where: { id: userId },
       data,
     });
+
+    if (updateResult.count === 0) {
+      throw new BadRequestException('User not found');
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
 
     return {
       ...this.mapUser(user),

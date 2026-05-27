@@ -52,7 +52,10 @@ export class RbacResolver {
       return true;
     }
 
-    if (filter.equals && roleName !== this.parseRoleFilterValue(filter.equals)) {
+    if (
+      filter.equals &&
+      roleName !== this.parseRoleFilterValue(filter.equals)
+    ) {
       return false;
     }
 
@@ -79,7 +82,10 @@ export class RbacResolver {
       return false;
     }
 
-    if (filter.contains && !normalizedValue.includes(filter.contains.toLowerCase())) {
+    if (
+      filter.contains &&
+      !normalizedValue.includes(filter.contains.toLowerCase())
+    ) {
       return false;
     }
 
@@ -90,7 +96,10 @@ export class RbacResolver {
       return false;
     }
 
-    if (filter.endsWith && !normalizedValue.endsWith(filter.endsWith.toLowerCase())) {
+    if (
+      filter.endsWith &&
+      !normalizedValue.endsWith(filter.endsWith.toLowerCase())
+    ) {
       return false;
     }
 

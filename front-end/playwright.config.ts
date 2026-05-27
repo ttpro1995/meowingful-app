@@ -8,7 +8,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:8500',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173',
     trace: 'on-first-retry',
   },
 
@@ -20,9 +20,13 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'npm run preview -- --port 8500',
-    url: 'http://localhost:8500',
-    reuseExistingServer: !process.env.CI,
+    command: 'npm run dev -- --port 5173',
+    url: 'http://localhost:5173',
+    reuseExistingServer: false,
     timeout: 120000,
+    env: {
+      ...process.env,
+      VITE_GRAPHQL_ENDPOINT: 'http://localhost:3000/graphql',
+    },
   },
 });

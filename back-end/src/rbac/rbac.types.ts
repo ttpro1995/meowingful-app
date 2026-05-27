@@ -1,11 +1,14 @@
-import { Field, InputType, Int, ObjectType, registerEnumType } from '@nestjs/graphql';
+import {
+  Field,
+  InputType,
+  Int,
+  ObjectType,
+  registerEnumType,
+} from '@nestjs/graphql';
 import { Type } from 'class-transformer';
 import { IsOptional, ValidateNested } from 'class-validator';
 import { RoleName } from '@prisma/client';
-import {
-  EnumFilter,
-  StringFilter,
-} from '../shared/pagination/filter.types';
+import { EnumFilter, StringFilter } from '../shared/pagination/filter.types';
 import {
   OrderByArgs,
   PaginationArgs,
