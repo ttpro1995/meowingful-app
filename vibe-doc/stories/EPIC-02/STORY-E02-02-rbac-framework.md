@@ -6,13 +6,13 @@
 - **Priority**: High
 - **Status**: Todo
 - **Created**: 2026-05-24
-- **Related**: vibe-doc/epic-plan.md, vibe-doc/architecture.md
+- **Related**: vibe-doc/epic-plan.md, vibe-doc/architecture.md, vibe-doc/stories/EPIC-01/STORY-E01-07-api-standardization.md
 
 ## User Story
 As a platform administrator, I want a role-based access control system so that I can control which users can perform which actions within a tenant, with roles like Admin, Sales Manager, and Staff having appropriately scoped permissions.
 
 ## Context
-The MVP has no roles beyond authenticated/unauthenticated. As CRM (EPIC-03) and E-Learning (EPIC-05) modules are added, each will need role guards (e.g., only "Sales Manager" can configure pipeline stages, only "Instructor" can create courses). This story establishes the RBAC framework before those modules are built to avoid retrofitting guards later.
+The MVP has no roles beyond authenticated/unauthenticated. As CRM (EPIC-03) and E-Learning (EPIC-05) modules are added, each will need role guards (e.g., only "Sales Manager" can configure pipeline stages, only "Instructor" can create courses). This story establishes the RBAC framework before those modules are built to avoid retrofitting guards later. RBAC APIs should also inherit STORY-E01-07 response/error consistency to keep authorization flows predictable for frontend consumers.
 
 ## Requirements
 
@@ -23,17 +23,21 @@ The MVP has no roles beyond authenticated/unauthenticated. As CRM (EPIC-03) and 
 - [ ] Tenant admin can view the permissions matrix for all roles in their tenant
 - [ ] Tenant admin can grant/revoke individual permissions per role (within their tenant)
 - [ ] Permission changes take effect immediately (no cache TTL > 0 for permission lookups)
+- [ ] Role-matrix list contract follows STORY-E01-07 pagination/orderBy conventions, or explicitly documents bounded-list exception
+- [x] RBAC mutation/query failures are surfaced using STORY-E01-07 standardized GraphQL `UserError` extensions
 
 ### Non-Functional Requirements
 - [ ] Permission check resolves in < 5ms — permissions cached in Redis per `tenantId:userId` with 60s TTL
 - [ ] Permission denial returns `FORBIDDEN` error with the missing permission code (not a vague 403)
 - [ ] All permission codes follow the pattern `resource:action` (e.g., `lead:create`, `course:publish`)
+- [x] Validation/authz failures follow global error shape from STORY-E01-07 (`code`, `message`, optional `field`)
 
 ## Acceptance Criteria
 - [ ] A `STAFF` user cannot call a mutation protected by `@RequirePermission('lead:delete')` — returns `FORBIDDEN`
 - [ ] A `SALES_MANAGER` granted `lead:delete` can call that mutation
 - [ ] Removing a permission from a role is reflected within 60 seconds (cache TTL)
 - [ ] Integration test asserts that the correct role has the correct default permissions after seed
+- [x] Forbidden/invalid RBAC operations expose standardized error codes through GraphQL error extensions
 
 ## Technical Specifications
 
@@ -41,6 +45,7 @@ The MVP has no roles beyond authenticated/unauthenticated. As CRM (EPIC-03) and 
 - **Prisma**: New `Role`, `Permission`, `RolePermission` models
 - **Backend**: `RbacModule` (global); `PermissionGuard`; `@RequirePermission()` decorator
 - **Redis**: Permission cache per `perm:{tenantId}:{userId}` key, TTL 60s
+- **Shared Standards**: Uses STORY-E01-07 global GraphQL error formatter; role-matrix query shape should align with shared list conventions as scope evolves
 
 ### Prisma Schema
 ```prisma
@@ -109,6 +114,7 @@ export class PermissionGuard implements CanActivate {
 
 ### Step 3: Tenant Admin API
 - Query: `rolePermissions(roleName)` — list permissions for a role
+- Query: `rolePermissions(tenantId, query?)` — list permissions for tenant roles; if kept as bounded fixed-role matrix, document explicit E01-07 pagination exception
 - Mutation: `grantPermission(roleName, permissionCode)`, `revokePermission(roleName, permissionCode)`
 - Both mutations invalidate Redis cache for affected users
 
@@ -161,6 +167,11 @@ export class PermissionGuard implements CanActivate {
 - ✅ Unit tests for `PermissionGuard` and `PermissionService` written and passing.
 - ✅ E2E tests for RBAC permission enforcement written and passing.
 - ✅ Auto-seeding of roles and permissions when tenant is created via `seedRolesForTenant` in `TenantService`.
+- ✅ RBAC errors now benefit from STORY-E01-07 global GraphQL formatting (`VALIDATION_ERROR`/`FORBIDDEN`/`INTERNAL_ERROR` mapping).
+
+### E01-07 Alignment Revisit (2026-05-27)
+- ✅ RBAC mutation/query errors are standardized through the global GraphQL error formatter introduced in STORY-E01-07.
+- ⚠️ `rolePermissions` currently returns a direct array for a bounded role set. If role catalogs become tenant-customizable at larger scale, migrate this endpoint to `PaginationArgs`/`OrderByArgs` + paginated payload.
 
 ## Status: In Review
 
@@ -168,3 +179,4 @@ export class PermissionGuard implements CanActivate {
 - [ ] Add UserTenantRole model for user-role assignment (currently mapping UserRole to RoleName)
 - [ ] Dynamic permission grant/revoke tests
 - [ ] Cache invalidation on permission changes (implemented but needs verification)
+- [ ] Decide and implement final `rolePermissions` list contract for strict STORY-E01-07 pagination conformance (or lock documented bounded-list exception)
