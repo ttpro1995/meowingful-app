@@ -17,6 +17,16 @@ describe('TenantConfigService', () => {
 
   const now = new Date('2026-05-28T00:00:00.000Z');
 
+  const tenantConfigUpsert = jest.fn();
+  const tenantConfigUpdate = jest.fn();
+  const tenantFindUnique = jest.fn();
+  const cacheGet = jest.fn();
+  const cacheSet = jest.fn();
+  const cacheDel = jest.fn();
+  const getUserPermissions = jest.fn();
+  const uploadTenantLogo = jest.fn();
+  const resolveLocalLogoPath = jest.fn();
+
   const baseConfigRecord = {
     id: 'config-1',
     tenantId: 'tenant-1',
@@ -39,27 +49,27 @@ describe('TenantConfigService', () => {
 
   const mockPrisma = {
     tenantConfig: {
-      upsert: jest.fn(),
-      update: jest.fn(),
+      upsert: tenantConfigUpsert,
+      update: tenantConfigUpdate,
     },
     tenant: {
-      findUnique: jest.fn(),
+      findUnique: tenantFindUnique,
     },
   } as unknown as PrismaService;
 
   const mockCacheService = {
-    get: jest.fn(),
-    set: jest.fn(),
-    del: jest.fn(),
+    get: cacheGet,
+    set: cacheSet,
+    del: cacheDel,
   } as unknown as CacheService;
 
   const mockPermissionService = {
-    getUserPermissions: jest.fn(),
+    getUserPermissions,
   } as unknown as PermissionService;
 
   const mockFileStorageService = {
-    uploadTenantLogo: jest.fn(),
-    resolveLocalLogoPath: jest.fn(),
+    uploadTenantLogo,
+    resolveLocalLogoPath,
   } as unknown as FileStorageService;
 
   beforeEach(() => {
@@ -74,7 +84,7 @@ describe('TenantConfigService', () => {
   });
 
   it('returns cached tenant config when available', async () => {
-    (mockCacheService.get as jest.Mock).mockResolvedValue(
+    cacheGet.mockResolvedValue(
       JSON.stringify({
         id: 'config-cached',
         tenantId: 'tenant-1',
@@ -86,7 +96,7 @@ describe('TenantConfigService', () => {
 
     expect(result.id).toBe('config-cached');
     expect(result.features.crm).toBe(true);
-    expect(mockPrisma.tenantConfig.upsert).not.toHaveBeenCalled();
+    expect(tenantConfigUpsert).not.toHaveBeenCalled();
   });
 
   it('updates tenant config and refreshes cache for tenant manager', async () => {
@@ -96,10 +106,8 @@ describe('TenantConfigService', () => {
       role: UserRole.USER,
       isSuperAdmin: false,
     });
-    (mockPermissionService.getUserPermissions as jest.Mock).mockResolvedValue([
-      'tenant:manage',
-    ]);
-    (mockPrisma.tenantConfig.upsert as jest.Mock).mockResolvedValue({
+    getUserPermissions.mockResolvedValue(['tenant:manage']);
+    tenantConfigUpsert.mockResolvedValue({
       ...baseConfigRecord,
       primaryColor: '#112233',
     });
@@ -109,12 +117,9 @@ describe('TenantConfigService', () => {
     });
 
     expect(result.primaryColor).toBe('#112233');
-    expect(mockCacheService.del).toHaveBeenCalledWith('tenant_config:tenant-1');
-    expect(mockCacheService.set).toHaveBeenCalled();
-    expect(mockPermissionService.getUserPermissions).toHaveBeenCalledWith(
-      'tenant-1',
-      'user-1',
-    );
+    expect(cacheDel).toHaveBeenCalledWith('tenant_config:tenant-1');
+    expect(cacheSet).toHaveBeenCalled();
+    expect(getUserPermissions).toHaveBeenCalledWith('tenant-1', 'user-1');
   });
 
   it('rejects feature toggle when caller is not super-admin', async () => {
@@ -138,14 +143,12 @@ describe('TenantConfigService', () => {
       isSuperAdmin: true,
     });
 
-    (mockPrisma.tenant.findUnique as jest.Mock).mockResolvedValue({
+    tenantFindUnique.mockResolvedValue({
       id: 'tenant-1',
     });
-    (mockCacheService.get as jest.Mock).mockResolvedValue(null);
-    (mockPrisma.tenantConfig.upsert as jest.Mock).mockResolvedValue(
-      baseConfigRecord,
-    );
-    (mockPrisma.tenantConfig.update as jest.Mock).mockResolvedValue({
+    cacheGet.mockResolvedValue(null);
+    tenantConfigUpsert.mockResolvedValue(baseConfigRecord);
+    tenantConfigUpdate.mockResolvedValue({
       ...baseConfigRecord,
       features: {
         ...baseConfigRecord.features,
@@ -160,7 +163,7 @@ describe('TenantConfigService', () => {
     );
 
     expect(result.features.crm).toBe(true);
-    expect(mockPrisma.tenantConfig.update).toHaveBeenCalledWith({
+    expect(tenantConfigUpdate).toHaveBeenCalledWith({
       where: { tenantId: 'tenant-1' },
       data: {
         features: {
@@ -172,14 +175,12 @@ describe('TenantConfigService', () => {
         },
       },
     });
-    expect(mockCacheService.del).toHaveBeenCalledWith('tenant_config:tenant-1');
+    expect(cacheDel).toHaveBeenCalledWith('tenant_config:tenant-1');
   });
 
   it('stores uploaded logo URL and refreshes cache', async () => {
-    (mockFileStorageService.uploadTenantLogo as jest.Mock).mockResolvedValue(
-      'https://cdn.example.com/logo.png',
-    );
-    (mockPrisma.tenantConfig.upsert as jest.Mock).mockResolvedValue({
+    uploadTenantLogo.mockResolvedValue('https://cdn.example.com/logo.png');
+    tenantConfigUpsert.mockResolvedValue({
       ...baseConfigRecord,
       logoUrl: 'https://cdn.example.com/logo.png',
     });
@@ -190,7 +191,7 @@ describe('TenantConfigService', () => {
     );
 
     expect(result.logoUrl).toBe('https://cdn.example.com/logo.png');
-    expect(mockCacheService.del).toHaveBeenCalledWith('tenant_config:tenant-1');
-    expect(mockCacheService.set).toHaveBeenCalled();
+    expect(cacheDel).toHaveBeenCalledWith('tenant_config:tenant-1');
+    expect(cacheSet).toHaveBeenCalled();
   });
 });

@@ -25,7 +25,9 @@ export class FeatureGuard implements CanActivate {
     private readonly tenantConfigService: TenantConfigService,
   ) {}
 
-  private inferFeatureFromPermission(permission: string): TenantFeatureKey | null {
+  private inferFeatureFromPermission(
+    permission: string,
+  ): TenantFeatureKey | null {
     if (permission.startsWith('lead:')) {
       return 'crm';
     }
@@ -81,9 +83,8 @@ export class FeatureGuard implements CanActivate {
       throw new UnauthorizedException('UNAUTHORIZED');
     }
 
-    const tenantConfig = await this.tenantConfigService.getTenantConfigByTenantId(
-      tenantId,
-    );
+    const tenantConfig =
+      await this.tenantConfigService.getTenantConfigByTenantId(tenantId);
 
     if (!tenantConfig.features[requiredFeature]) {
       throw new ForbiddenException('FEATURE_DISABLED');

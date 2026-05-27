@@ -33,7 +33,9 @@ export class TenantLogoController {
       fileFilter: (_req, file, callback) => {
         if (!file.mimetype.startsWith('image/')) {
           callback(
-            new BadRequestException('Only image uploads are supported for logo'),
+            new BadRequestException(
+              'Only image uploads are supported for logo',
+            ),
             false,
           );
           return;

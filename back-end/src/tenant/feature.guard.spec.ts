@@ -12,17 +12,20 @@ import { TenantConfigService } from './tenant-config.service';
 describe('FeatureGuard', () => {
   let guard: FeatureGuard;
 
+  const getAllAndOverride = jest.fn();
+  const getTenantConfigByTenantId = jest.fn();
+
   const mockReflector = {
-    getAllAndOverride: jest.fn(),
+    getAllAndOverride,
   } as unknown as Reflector;
 
   const mockTenantConfigService = {
-    getTenantConfigByTenantId: jest.fn(),
+    getTenantConfigByTenantId,
   } as unknown as TenantConfigService;
 
   const createGraphqlContext = (
     tenantId: string | null,
-    handler: Function = jest.fn(),
+    handler: () => unknown = jest.fn(),
   ): ExecutionContext => {
     const req = {
       tenantContext: tenantId
@@ -53,46 +56,38 @@ describe('FeatureGuard', () => {
   });
 
   it('allows when no feature metadata is present', async () => {
-    mockReflector.getAllAndOverride = jest
-      .fn()
-      .mockImplementation((key: string) => {
-        if (key === REQUIRE_FEATURE_KEY) {
-          return undefined;
-        }
-
-        if (key === REQUIRE_PERMISSION_KEY) {
-          return undefined;
-        }
-
+    getAllAndOverride.mockImplementation((key: string) => {
+      if (key === REQUIRE_FEATURE_KEY) {
         return undefined;
-      });
+      }
+
+      if (key === REQUIRE_PERMISSION_KEY) {
+        return undefined;
+      }
+
+      return undefined;
+    });
 
     const context = createGraphqlContext('tenant-1');
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
-    expect(
-      mockTenantConfigService.getTenantConfigByTenantId,
-    ).not.toHaveBeenCalled();
+    expect(getTenantConfigByTenantId).not.toHaveBeenCalled();
   });
 
   it('allows when required feature is enabled', async () => {
-    mockReflector.getAllAndOverride = jest
-      .fn()
-      .mockImplementation((key: string) => {
-        if (key === REQUIRE_FEATURE_KEY) {
-          return 'crm';
-        }
+    getAllAndOverride.mockImplementation((key: string) => {
+      if (key === REQUIRE_FEATURE_KEY) {
+        return 'crm';
+      }
 
-        return undefined;
-      });
+      return undefined;
+    });
 
-    mockTenantConfigService.getTenantConfigByTenantId = jest
-      .fn()
-      .mockResolvedValue({
-        features: {
-          crm: true,
-        },
-      });
+    getTenantConfigByTenantId.mockResolvedValue({
+      features: {
+        crm: true,
+      },
+    });
 
     const context = createGraphqlContext('tenant-1');
 
@@ -100,68 +95,64 @@ describe('FeatureGuard', () => {
   });
 
   it('throws FEATURE_DISABLED when required feature is disabled', async () => {
-    mockReflector.getAllAndOverride = jest
-      .fn()
-      .mockImplementation((key: string) => {
-        if (key === REQUIRE_FEATURE_KEY) {
-          return 'crm';
-        }
+    getAllAndOverride.mockImplementation((key: string) => {
+      if (key === REQUIRE_FEATURE_KEY) {
+        return 'crm';
+      }
 
-        return undefined;
-      });
+      return undefined;
+    });
 
-    mockTenantConfigService.getTenantConfigByTenantId = jest
-      .fn()
-      .mockResolvedValue({
-        features: {
-          crm: false,
-        },
-      });
+    getTenantConfigByTenantId.mockResolvedValue({
+      features: {
+        crm: false,
+      },
+    });
 
     const context = createGraphqlContext('tenant-1');
 
-    await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
-    await expect(guard.canActivate(context)).rejects.toThrow('FEATURE_DISABLED');
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      ForbiddenException,
+    );
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      'FEATURE_DISABLED',
+    );
   });
 
   it('maps lead permission metadata to crm feature enforcement', async () => {
-    mockReflector.getAllAndOverride = jest
-      .fn()
-      .mockImplementation((key: string) => {
-        if (key === REQUIRE_FEATURE_KEY) {
-          return undefined;
-        }
-
-        if (key === REQUIRE_PERMISSION_KEY) {
-          return 'lead:create';
-        }
-
+    getAllAndOverride.mockImplementation((key: string) => {
+      if (key === REQUIRE_FEATURE_KEY) {
         return undefined;
-      });
+      }
 
-    mockTenantConfigService.getTenantConfigByTenantId = jest
-      .fn()
-      .mockResolvedValue({
-        features: {
-          crm: false,
-        },
-      });
+      if (key === REQUIRE_PERMISSION_KEY) {
+        return 'lead:create';
+      }
+
+      return undefined;
+    });
+
+    getTenantConfigByTenantId.mockResolvedValue({
+      features: {
+        crm: false,
+      },
+    });
 
     const context = createGraphqlContext('tenant-1');
 
-    await expect(guard.canActivate(context)).rejects.toThrow('FEATURE_DISABLED');
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      'FEATURE_DISABLED',
+    );
   });
 
   it('rejects when tenant context is missing', async () => {
-    mockReflector.getAllAndOverride = jest
-      .fn()
-      .mockImplementation((key: string) => {
-        if (key === REQUIRE_FEATURE_KEY) {
-          return 'crm';
-        }
+    getAllAndOverride.mockImplementation((key: string) => {
+      if (key === REQUIRE_FEATURE_KEY) {
+        return 'crm';
+      }
 
-        return undefined;
-      });
+      return undefined;
+    });
 
     const context = createGraphqlContext(null);
 

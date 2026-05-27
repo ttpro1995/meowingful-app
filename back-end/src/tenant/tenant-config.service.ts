@@ -329,7 +329,10 @@ export class TenantConfigService {
     tenantId: string,
     file: Express.Multer.File,
   ): Promise<TenantConfig> {
-    const logoUrl = await this.fileStorageService.uploadTenantLogo(tenantId, file);
+    const logoUrl = await this.fileStorageService.uploadTenantLogo(
+      tenantId,
+      file,
+    );
 
     const updated = await this.prisma.tenantConfig.upsert({
       where: { tenantId },

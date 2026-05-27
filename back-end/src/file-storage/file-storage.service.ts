@@ -31,8 +31,7 @@ export class FileStorageService {
     this.s3PublicBaseUrl =
       this.configService.get<string>('S3_PUBLIC_BASE_URL') ?? null;
     this.s3ForcePathStyle =
-      this.configService.get<string>('S3_FORCE_PATH_STYLE', 'true') !==
-      'false';
+      this.configService.get<string>('S3_FORCE_PATH_STYLE', 'true') !== 'false';
 
     if (!this.s3Bucket) {
       this.s3Client = null;
