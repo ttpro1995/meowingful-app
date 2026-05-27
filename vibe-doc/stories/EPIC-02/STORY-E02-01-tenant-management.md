@@ -157,3 +157,6 @@ export class TenantContext {
 - ✅ `tenants(query)` uses `TenantsQueryInput` with `PaginationArgs`, `OrderByArgs`, and shared filter inputs.
 - ✅ `tenants` response returns `PaginatedTenants` with `pageInfo { total, page, limit, totalPages }`.
 - ✅ Tenant resolver exceptions flow through global `formatGraphQLError`, producing standardized `UserError` codes (`VALIDATION_ERROR`, `FORBIDDEN`, `UNAUTHORIZED`, `INTERNAL_ERROR`).
+- ✅ Added e2e assertions for E01-07 validation behavior in `back-end/test/tenant.e2e-spec.ts`:
+  - `pagination.limit > 100` returns standardized `VALIDATION_ERROR`.
+  - Invalid `createTenant` input returns field-level validation errors (`slug`, `contactEmail`).

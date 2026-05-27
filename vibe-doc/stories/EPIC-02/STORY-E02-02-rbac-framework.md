@@ -4,7 +4,7 @@
 - **Story ID**: STORY-E02-02
 - **Epic**: EPIC-02 — Multi-Tenant Admin & RBAC
 - **Priority**: High
-- **Status**: Todo
+- **Status**: In Review
 - **Created**: 2026-05-24
 - **Related**: vibe-doc/epic-plan.md, vibe-doc/architecture.md, vibe-doc/stories/EPIC-01/STORY-E01-07-api-standardization.md
 
@@ -23,7 +23,7 @@ The MVP has no roles beyond authenticated/unauthenticated. As CRM (EPIC-03) and 
 - [ ] Tenant admin can view the permissions matrix for all roles in their tenant
 - [ ] Tenant admin can grant/revoke individual permissions per role (within their tenant)
 - [ ] Permission changes take effect immediately (no cache TTL > 0 for permission lookups)
-- [ ] Role-matrix list contract follows STORY-E01-07 pagination/orderBy conventions, or explicitly documents bounded-list exception
+- [x] Role-matrix list contract follows STORY-E01-07 pagination/orderBy conventions
 - [x] RBAC mutation/query failures are surfaced using STORY-E01-07 standardized GraphQL `UserError` extensions
 
 ### Non-Functional Requirements
@@ -113,8 +113,7 @@ export class PermissionGuard implements CanActivate {
 - `@RequirePermission(...codes)` decorator sets metadata on resolver/controller method
 
 ### Step 3: Tenant Admin API
-- Query: `rolePermissions(roleName)` — list permissions for a role
-- Query: `rolePermissions(tenantId, query?)` — list permissions for tenant roles; if kept as bounded fixed-role matrix, document explicit E01-07 pagination exception
+- Query: `rolePermissions(tenantId, query?)` — list permissions for tenant roles using `PaginationArgs`, `OrderByArgs`, and shared filter types
 - Mutation: `grantPermission(roleName, permissionCode)`, `revokePermission(roleName, permissionCode)`
 - Both mutations invalidate Redis cache for affected users
 
@@ -171,7 +170,10 @@ export class PermissionGuard implements CanActivate {
 
 ### E01-07 Alignment Revisit (2026-05-27)
 - ✅ RBAC mutation/query errors are standardized through the global GraphQL error formatter introduced in STORY-E01-07.
-- ⚠️ `rolePermissions` currently returns a direct array for a bounded role set. If role catalogs become tenant-customizable at larger scale, migrate this endpoint to `PaginationArgs`/`OrderByArgs` + paginated payload.
+- ✅ `rolePermissions` now uses E01-07 list standards: `RolePermissionsQueryInput` (`pagination`, `orderBy`, filters) and a paginated payload with `pageInfo`.
+- ✅ Added automated coverage for the new contract:
+  - Unit: `back-end/src/rbac/rbac.resolver.spec.ts`
+  - E2E: `back-end/test/rbac.e2e-spec.ts`
 
 ## Status: In Review
 
@@ -179,4 +181,3 @@ export class PermissionGuard implements CanActivate {
 - [ ] Add UserTenantRole model for user-role assignment (currently mapping UserRole to RoleName)
 - [ ] Dynamic permission grant/revoke tests
 - [ ] Cache invalidation on permission changes (implemented but needs verification)
-- [ ] Decide and implement final `rolePermissions` list contract for strict STORY-E01-07 pagination conformance (or lock documented bounded-list exception)

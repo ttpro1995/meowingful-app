@@ -151,6 +151,9 @@ mutation switchTenant(tenantId: ID!): AuthPayload
 ### E01-07 Alignment Revisit (2026-05-27)
 - ✅ `members` endpoint uses shared `PaginationArgs`, `OrderByArgs`, and filter types, returning paginated metadata (`pageInfo`).
 - ✅ Membership flows now inherit standardized GraphQL `UserError` formatting (`VALIDATION_ERROR`, `FORBIDDEN`, `UNAUTHORIZED`, `INTERNAL_ERROR`).
+- ✅ Added e2e assertions in `back-end/test/membership.e2e-spec.ts` to verify standardized validation responses for:
+  - invalid `members` pagination input (`pagination.limit > 100`),
+  - invalid `inviteMember` input (email/roleId).
 - ⚠️ `myTenants` remains a direct per-user list (non-paginated). Keep as-is for now due bounded per-user scope; migrate to paginated contract if tenant memberships grow materially.
 
 ### Remaining for Story Completion

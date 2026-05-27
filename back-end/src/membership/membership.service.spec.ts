@@ -6,6 +6,7 @@ import { MembershipService } from './membership.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PermissionService } from '../rbac/permission.service';
 import { getTenantContext } from '../tenant/tenant-context.storage';
+import { SortDirection } from '../shared/pagination/pagination.args';
 
 jest.mock('../tenant/tenant-context.storage', () => ({
   getTenantContext: jest.fn(),
@@ -172,5 +173,70 @@ describe('MembershipService', () => {
     });
     const invalidateMock = mockPermissionService.invalidateUserPermissions;
     expect(invalidateMock).toHaveBeenCalledWith('tenant-1', 'member-1');
+  });
+
+  it('throws BadRequestException for unsupported members orderBy field', async () => {
+    (getTenantContext as jest.Mock).mockReturnValue({
+      tenantId: 'tenant-1',
+      userId: 'admin-1',
+      role: UserRole.TENANT_ADMIN,
+      isSuperAdmin: false,
+    });
+
+    await expect(
+      service.members({
+        orderBy: {
+          field: 'invalidField',
+          direction: SortDirection.ASC,
+        },
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('clamps members pagination.limit to max 100', async () => {
+    (getTenantContext as jest.Mock).mockReturnValue({
+      tenantId: 'tenant-1',
+      userId: 'admin-1',
+      role: UserRole.TENANT_ADMIN,
+      isSuperAdmin: false,
+    });
+
+    mockPrismaService.user.count.mockResolvedValue(1);
+    mockPrismaService.user.findMany.mockResolvedValue([
+      {
+        id: 'member-1',
+        tenantId: 'tenant-1',
+        username: 'member',
+        name: 'Member',
+        bio: null,
+        email: 'member@example.com',
+        deletedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        userRoles: [
+          {
+            roleId: 'role-1',
+            role: {
+              name: 'STAFF',
+            },
+          },
+        ],
+      },
+    ]);
+
+    const result = await service.members({
+      pagination: {
+        page: 1,
+        limit: 500,
+      },
+    });
+
+    expect(result.pageInfo.limit).toBe(100);
+    expect(mockPrismaService.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skip: 0,
+        take: 100,
+      }),
+    );
   });
 });

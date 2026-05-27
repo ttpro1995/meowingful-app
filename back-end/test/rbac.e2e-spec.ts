@@ -8,7 +8,18 @@ import { PrismaService } from './../src/prisma/prisma.service';
 
 interface GraphQLResponse<T = Record<string, unknown>> {
   data?: T;
-  errors?: Array<{ message: string }>;
+  errors?: Array<{
+    message: string;
+    extensions?: {
+      code?: string;
+      field?: string;
+      errors?: Array<{
+        code: string;
+        message: string;
+        field?: string;
+      }>;
+    };
+  }>;
 }
 
 describe('RBAC (e2e)', () => {
@@ -31,14 +42,84 @@ describe('RBAC (e2e)', () => {
   });
 
   afterAll(async () => {
-    await prismaService.rolePermission.deleteMany({});
-    await prismaService.role.deleteMany({});
-    await prismaService.permission.deleteMany({});
-    await prismaService.user.deleteMany({
-      where: { username: { startsWith: testUserPrefix } },
+    const testTenants = await prismaService.tenant.findMany({
+      where: {
+        slug: {
+          startsWith: testSlug,
+        },
+      },
+      select: {
+        id: true,
+      },
     });
+    const tenantIds = testTenants.map((tenant) => tenant.id);
+
+    await prismaService.rolePermission.deleteMany({
+      where: {
+        role: {
+          tenantId: {
+            in: tenantIds,
+          },
+        },
+      },
+    });
+
+    await prismaService.userTenantRole.deleteMany({
+      where: {
+        tenantId: {
+          in: tenantIds,
+        },
+      },
+    });
+
+    await prismaService.auth.deleteMany({
+      where: {
+        OR: [
+          {
+            username: {
+              startsWith: testUserPrefix,
+            },
+          },
+          {
+            tenantId: {
+              in: tenantIds,
+            },
+          },
+        ],
+      },
+    });
+
+    await prismaService.user.deleteMany({
+      where: {
+        OR: [
+          {
+            username: {
+              startsWith: testUserPrefix,
+            },
+          },
+          {
+            tenantId: {
+              in: tenantIds,
+            },
+          },
+        ],
+      },
+    });
+
+    await prismaService.role.deleteMany({
+      where: {
+        tenantId: {
+          in: tenantIds,
+        },
+      },
+    });
+
     await prismaService.tenant.deleteMany({
-      where: { slug: { startsWith: testSlug } },
+      where: {
+        id: {
+          in: tenantIds,
+        },
+      },
     });
 
     await app.close();
@@ -351,5 +432,312 @@ describe('RBAC (e2e)', () => {
     expect(
       salesRole?.permissions.some((p) => p.permission.code === 'lead:delete'),
     ).toBe(true);
+  });
+
+  it('supports E01-07 style pagination/orderBy/filter on rolePermissions', async () => {
+    const tenant = await prismaService.tenant.create({
+      data: {
+        name: `${testSlug}-matrix`,
+        slug: `${testSlug}-matrix`,
+        contactEmail: `matrix@${testSlug}.com`,
+      },
+    });
+
+    const staffPermission = await prismaService.permission.upsert({
+      where: { code: 'lead:create' },
+      update: { description: 'Create lead' },
+      create: {
+        code: 'lead:create',
+        description: 'Create lead',
+      },
+    });
+
+    const leadDeletePermission = await prismaService.permission.upsert({
+      where: { code: 'lead:delete' },
+      update: { description: 'Delete lead' },
+      create: {
+        code: 'lead:delete',
+        description: 'Delete lead',
+      },
+    });
+
+    const tenantManagePermission = await prismaService.permission.upsert({
+      where: { code: 'tenant:manage' },
+      update: { description: 'Manage tenant' },
+      create: {
+        code: 'tenant:manage',
+        description: 'Manage tenant',
+      },
+    });
+
+    const staffRole = await prismaService.role.create({
+      data: {
+        tenantId: tenant.id,
+        name: 'STAFF',
+      },
+    });
+
+    const salesManagerRole = await prismaService.role.create({
+      data: {
+        tenantId: tenant.id,
+        name: 'SALES_MANAGER',
+      },
+    });
+
+    const tenantAdminRole = await prismaService.role.create({
+      data: {
+        tenantId: tenant.id,
+        name: 'TENANT_ADMIN',
+      },
+    });
+
+    await prismaService.rolePermission.createMany({
+      data: [
+        {
+          roleId: staffRole.id,
+          permissionId: staffPermission.id,
+        },
+        {
+          roleId: salesManagerRole.id,
+          permissionId: staffPermission.id,
+        },
+        {
+          roleId: salesManagerRole.id,
+          permissionId: leadDeletePermission.id,
+        },
+        {
+          roleId: tenantAdminRole.id,
+          permissionId: tenantManagePermission.id,
+        },
+      ],
+      skipDuplicates: true,
+    });
+
+    const user = await prismaService.user.create({
+      data: {
+        tenantId: tenant.id,
+        username: `${testUserPrefix}matrix`,
+        name: 'RBAC Matrix User',
+        role: 'USER',
+      },
+    });
+
+    await prismaService.auth.create({
+      data: {
+        userId: user.id,
+        tenantId: tenant.id,
+        username: user.username,
+        passwordHash: await bcrypt.hash('password123', 10),
+        salt: 'salt',
+      },
+    });
+
+    await prismaService.userTenantRole.create({
+      data: {
+        userId: user.id,
+        tenantId: tenant.id,
+        roleId: staffRole.id,
+      },
+    });
+
+    const loginRes = await request(
+      app.getHttpServer() as Parameters<typeof request>[0],
+    )
+      .post('/graphql')
+      .send({
+        query: `
+          mutation Login($input: LoginInput!) {
+            login(input: $input) {
+              accessToken
+            }
+          }
+        `,
+        variables: {
+          input: {
+            username: user.username,
+            password: 'password123',
+            tenantSlug: tenant.slug,
+          },
+        },
+      });
+
+    const accessToken = (
+      loginRes.body as GraphQLResponse<{ login: { accessToken: string } }>
+    ).data?.login.accessToken;
+    expect(accessToken).toBeDefined();
+
+    await request(app.getHttpServer() as Parameters<typeof request>[0])
+      .post('/graphql')
+      .set('Authorization', `Bearer ${accessToken ?? ''}`)
+      .send({
+        query: `
+          query RolePermissions($tenantId: String!, $query: RolePermissionsQueryInput) {
+            rolePermissions(tenantId: $tenantId, query: $query) {
+              data {
+                roleName
+                permissions
+              }
+              rolePermissions {
+                roleName
+              }
+              totalCount
+              pageInfo {
+                total
+                page
+                limit
+                totalPages
+              }
+            }
+          }
+        `,
+        variables: {
+          tenantId: tenant.id,
+          query: {
+            pagination: { page: 1, limit: 2 },
+            orderBy: { field: 'permissionCount', direction: 'DESC' },
+            filter: {
+              permissionCode: {
+                contains: 'lead:',
+              },
+            },
+          },
+        },
+      })
+      .expect(200)
+      .expect((res: request.Response) => {
+        const body = res.body as GraphQLResponse<{
+          rolePermissions: {
+            data: Array<{ roleName: string; permissions: string[] }>;
+            rolePermissions: Array<{ roleName: string }>;
+            totalCount: number;
+            pageInfo: {
+              total: number;
+              page: number;
+              limit: number;
+              totalPages: number;
+            };
+          };
+        }>;
+
+        expect(body.errors).toBeUndefined();
+        expect(body.data?.rolePermissions.totalCount).toBe(2);
+        expect(body.data?.rolePermissions.pageInfo).toEqual({
+          total: 2,
+          page: 1,
+          limit: 2,
+          totalPages: 1,
+        });
+
+        const roleNames =
+          body.data?.rolePermissions.data.map((entry) => entry.roleName) ?? [];
+        expect(roleNames).toEqual(['SALES_MANAGER', 'STAFF']);
+      });
+  });
+
+  it('returns VALIDATION_ERROR when rolePermissions pagination.limit is above max', async () => {
+    const tenant = await prismaService.tenant.create({
+      data: {
+        name: `${testSlug}-validation`,
+        slug: `${testSlug}-validation`,
+        contactEmail: `validation@${testSlug}.com`,
+      },
+    });
+
+    const staffRole = await prismaService.role.create({
+      data: {
+        tenantId: tenant.id,
+        name: 'STAFF',
+      },
+    });
+
+    const validationUsername = `rval${String(uniquePart).slice(-6)}`;
+
+    const user = await prismaService.user.create({
+      data: {
+        tenantId: tenant.id,
+        username: validationUsername,
+        name: 'RBAC Validation User',
+        role: 'USER',
+      },
+    });
+
+    await prismaService.auth.create({
+      data: {
+        userId: user.id,
+        tenantId: tenant.id,
+        username: user.username,
+        passwordHash: await bcrypt.hash('password123', 10),
+        salt: 'salt',
+      },
+    });
+
+    await prismaService.userTenantRole.create({
+      data: {
+        userId: user.id,
+        tenantId: tenant.id,
+        roleId: staffRole.id,
+      },
+    });
+
+    const loginRes = await request(
+      app.getHttpServer() as Parameters<typeof request>[0],
+    )
+      .post('/graphql')
+      .send({
+        query: `
+          mutation Login($input: LoginInput!) {
+            login(input: $input) {
+              accessToken
+            }
+          }
+        `,
+        variables: {
+          input: {
+            username: user.username,
+            password: 'password123',
+            tenantSlug: tenant.slug,
+          },
+        },
+      });
+
+    const accessToken = (
+      loginRes.body as GraphQLResponse<{ login: { accessToken: string } }>
+    ).data?.login.accessToken;
+    expect(accessToken).toBeDefined();
+
+    await request(app.getHttpServer() as Parameters<typeof request>[0])
+      .post('/graphql')
+      .set('Authorization', `Bearer ${accessToken ?? ''}`)
+      .send({
+        query: `
+          query RolePermissions($tenantId: String!, $query: RolePermissionsQueryInput) {
+            rolePermissions(tenantId: $tenantId, query: $query) {
+              totalCount
+            }
+          }
+        `,
+        variables: {
+          tenantId: tenant.id,
+          query: {
+            pagination: {
+              page: 1,
+              limit: 200,
+            },
+          },
+        },
+      })
+      .expect(200)
+      .expect((res: request.Response) => {
+        const body = res.body as GraphQLResponse<{
+          rolePermissions: null;
+        }>;
+
+        expect(body.errors).toBeDefined();
+        const firstError = body.errors?.[0];
+        expect(firstError?.extensions?.code).toBe('VALIDATION_ERROR');
+        expect(firstError?.extensions?.errors?.[0].field).toBe(
+          'pagination.limit',
+        );
+      });
   });
 });
