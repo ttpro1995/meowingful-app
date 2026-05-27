@@ -5,8 +5,11 @@ import {
   CHANGE_PASSWORD,
   GET_USER,
   LOGOUT,
+  MY_TENANT,
+  TENANT_CONFIG,
   MY_TENANTS,
   SWITCH_TENANT,
+  UPDATE_TENANT_CONFIG,
   UPDATE_USER,
 } from '../graphql/queries';
 import { useAuth } from '../context/useAuth';
@@ -51,6 +54,71 @@ interface MyTenantsQuery {
   };
 }
 
+interface TenantBranding {
+  id: string;
+  name: string;
+  slug: string;
+  logoUrl?: string | null;
+}
+
+interface MyTenantQuery {
+  myTenant: TenantBranding;
+}
+
+interface TenantBusinessHours {
+  mon?: string | null;
+  tue?: string | null;
+  wed?: string | null;
+  thu?: string | null;
+  fri?: string | null;
+  sat?: string | null;
+  sun?: string | null;
+}
+
+interface TenantFeatures {
+  crm: boolean;
+  elearning: boolean;
+  call_center: boolean;
+  live_classes: boolean;
+  marketplace: boolean;
+}
+
+interface TenantConfig {
+  id: string;
+  tenantId: string;
+  logoUrl?: string | null;
+  primaryColor: string;
+  subdomain?: string | null;
+  timezone: string;
+  defaultLanguage: string;
+  businessHours?: TenantBusinessHours | null;
+  features: TenantFeatures;
+}
+
+interface TenantConfigQuery {
+  tenantConfig: TenantConfig;
+}
+
+interface UpdateTenantConfigMutation {
+  updateTenantConfig: TenantConfig;
+}
+
+interface TenantConfigInput {
+  primaryColor?: string;
+  subdomain?: string;
+  timezone?: string;
+  defaultLanguage?: string;
+  businessHours?: {
+    mon?: string;
+    tue?: string;
+    wed?: string;
+    thu?: string;
+    fri?: string;
+    sat?: string;
+    sun?: string;
+  };
+}
+
 interface SwitchTenantMutation {
   switchTenant: {
     accessToken: string;
@@ -91,8 +159,21 @@ export default function Profile() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [tenantConfigDraft, setTenantConfigDraft] = useState<TenantConfigInput>({});
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const canManageTenantConfig =
+    authUser?.role === 'TENANT_ADMIN' || authUser?.role === 'SUPER_ADMIN';
+
+  const graphqlEndpoint =
+    import.meta.env.VITE_GRAPHQL_ENDPOINT || 'http://localhost:3500/graphql';
+  const apiBaseUrl = graphqlEndpoint.endsWith('/graphql')
+    ? graphqlEndpoint.slice(0, -'/graphql'.length)
+    : graphqlEndpoint;
+  const logoUploadEndpoint = `${apiBaseUrl}/api/v1/tenant/logo`;
 
   const { data, refetch } = useQuery<GetUserQuery>(GET_USER, {
     variables: { userId: authUser?.id },
@@ -106,7 +187,19 @@ export default function Profile() {
     skip: !token,
   });
 
+  const { data: tenantBrandingData, refetch: refetchMyTenant } =
+    useQuery<MyTenantQuery>(MY_TENANT, {
+      skip: !token,
+    });
+
+  const { data: tenantConfigData, refetch: refetchTenantConfig } =
+    useQuery<TenantConfigQuery>(TENANT_CONFIG, {
+      skip: !token || !canManageTenantConfig,
+    });
+
   const [updateUser] = useMutation<UpdateUserMutation>(UPDATE_USER);
+  const [updateTenantConfigMutation, { loading: updatingTenantConfig }] =
+    useMutation<UpdateTenantConfigMutation>(UPDATE_TENANT_CONFIG);
   const [changePassword] = useMutation<ChangePasswordMutation>(CHANGE_PASSWORD);
   const [logoutMutation] = useMutation<LogoutMutation>(LOGOUT);
   const [switchTenantMutation, { loading: switchingTenant }] =
@@ -136,6 +229,46 @@ export default function Profile() {
 
     return memberships[0]?.tenantId ?? '';
   }, [authUser?.tenantId, memberships, tenantSelectionOverride]);
+
+  const tenantBranding = tenantBrandingData?.myTenant;
+  const tenantConfig = tenantConfigData?.tenantConfig;
+
+  const resolvedBusinessHours = useMemo(
+    () => ({
+      mon:
+        tenantConfigDraft.businessHours?.mon ??
+        tenantConfig?.businessHours?.mon ??
+        '',
+      tue:
+        tenantConfigDraft.businessHours?.tue ??
+        tenantConfig?.businessHours?.tue ??
+        '',
+      wed:
+        tenantConfigDraft.businessHours?.wed ??
+        tenantConfig?.businessHours?.wed ??
+        '',
+      thu:
+        tenantConfigDraft.businessHours?.thu ??
+        tenantConfig?.businessHours?.thu ??
+        '',
+      fri:
+        tenantConfigDraft.businessHours?.fri ??
+        tenantConfig?.businessHours?.fri ??
+        '',
+      sat:
+        tenantConfigDraft.businessHours?.sat ??
+        tenantConfig?.businessHours?.sat ??
+        '',
+      sun:
+        tenantConfigDraft.businessHours?.sun ??
+        tenantConfig?.businessHours?.sun ??
+        '',
+    }),
+    [tenantConfig, tenantConfigDraft.businessHours],
+  );
+
+  const resolvedPrimaryColor =
+    tenantConfigDraft.primaryColor ?? tenantConfig?.primaryColor ?? '#3B82F6';
 
   // Initialize name/bio from data when editing starts (lazy init via function)
   const initializeForm = () => {
@@ -243,6 +376,118 @@ export default function Profile() {
     }
   };
 
+  const setBusinessHour = (
+    day: keyof NonNullable<TenantConfigInput['businessHours']>,
+    value: string,
+  ) => {
+    setTenantConfigDraft((current) => ({
+      ...current,
+      businessHours: {
+        ...(current.businessHours ?? {}),
+        [day]: value,
+      },
+    }));
+  };
+
+  const handleUpdateTenantConfiguration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    const businessHours = Object.entries(resolvedBusinessHours).reduce(
+      (result, [day, value]) => {
+        const normalizedValue = value.trim();
+        if (normalizedValue.length > 0) {
+          result[day as keyof NonNullable<TenantConfigInput['businessHours']>] =
+            normalizedValue;
+        }
+
+        return result;
+      },
+      {} as NonNullable<TenantConfigInput['businessHours']>,
+    );
+
+    const input: TenantConfigInput = {
+      primaryColor: resolvedPrimaryColor,
+      subdomain:
+        (tenantConfigDraft.subdomain ?? tenantConfig?.subdomain ?? '')
+          .trim()
+          .toLowerCase() || undefined,
+      timezone: (tenantConfigDraft.timezone ?? tenantConfig?.timezone ?? 'UTC').trim(),
+      defaultLanguage: (
+        tenantConfigDraft.defaultLanguage ??
+        tenantConfig?.defaultLanguage ??
+        'en'
+      ).trim(),
+      businessHours,
+    };
+
+    try {
+      const { data } = await updateTenantConfigMutation({
+        variables: {
+          input,
+        },
+      });
+
+      if (data?.updateTenantConfig) {
+        setTenantConfigDraft({});
+        setSuccess('Tenant configuration updated successfully!');
+        void refetchTenantConfig();
+        void refetchMyTenant();
+      }
+    } catch (err: unknown) {
+      setError(toGraphQLErrorMessage(err, 'Failed to update tenant configuration'));
+    }
+  };
+
+  const handleTenantLogoUpload = async () => {
+    setError('');
+    setSuccess('');
+
+    if (!logoFile) {
+      setError('Please select a logo file before uploading');
+      return;
+    }
+
+    if (!token) {
+      setError('UNAUTHORIZED');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', logoFile);
+
+    setIsUploadingLogo(true);
+
+    try {
+      const response = await fetch(logoUploadEndpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as { logoUrl?: string; message?: string };
+
+      if (!response.ok || !payload.logoUrl) {
+        throw new Error(payload.message || 'Logo upload failed');
+      }
+
+      setLogoFile(null);
+      setSuccess('Tenant logo uploaded successfully!');
+      void refetchMyTenant();
+      void refetchTenantConfig();
+    } catch (err: unknown) {
+      const fallbackMessage = 'Logo upload failed';
+      setError(err instanceof Error ? err.message : fallbackMessage);
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await logoutMutation();
@@ -261,6 +506,36 @@ export default function Profile() {
   return (
     <div className="container">
       <h1>Profile</h1>
+
+      <div
+        className="tenant-nav"
+        style={{
+          borderColor: resolvedPrimaryColor,
+        }}
+      >
+        {tenantBranding?.logoUrl ? (
+          <img
+            src={tenantBranding.logoUrl}
+            alt={`${tenantBranding.name} logo`}
+            className="tenant-nav-logo"
+          />
+        ) : (
+          <div
+            className="tenant-nav-logo tenant-nav-logo-fallback"
+            style={{
+              backgroundColor: resolvedPrimaryColor,
+            }}
+          >
+            {(tenantBranding?.name || activeMembership?.tenantName || 'T')
+              .slice(0, 1)
+              .toUpperCase()}
+          </div>
+        )}
+        <div className="tenant-nav-meta">
+          <strong>{tenantBranding?.name || activeMembership?.tenantName || 'Tenant'}</strong>
+          <span>@{tenantBranding?.slug || activeMembership?.tenantSlug || 'default'}</span>
+        </div>
+      </div>
       
       {error && <div className="error">{error}</div>}
       {success && <div className="success">{success}</div>}
@@ -315,6 +590,181 @@ export default function Profile() {
           </>
         )}
       </div>
+
+      {canManageTenantConfig && (
+        <div className="profile-section">
+          <h2>Tenant Configuration</h2>
+          <form onSubmit={handleUpdateTenantConfiguration} className="form tenant-config-form">
+            <div className="form-group">
+              <label htmlFor="primaryColor">Primary Color</label>
+              <input
+                type="color"
+                id="primaryColor"
+                value={resolvedPrimaryColor}
+                onChange={(e) =>
+                  setTenantConfigDraft((current) => ({
+                    ...current,
+                    primaryColor: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="subdomain">Subdomain</label>
+              <input
+                type="text"
+                id="subdomain"
+                placeholder="myschool"
+                value={tenantConfigDraft.subdomain ?? tenantConfig?.subdomain ?? ''}
+                onChange={(e) =>
+                  setTenantConfigDraft((current) => ({
+                    ...current,
+                    subdomain: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="timezone">Timezone</label>
+              <input
+                type="text"
+                id="timezone"
+                value={tenantConfigDraft.timezone ?? tenantConfig?.timezone ?? 'UTC'}
+                onChange={(e) =>
+                  setTenantConfigDraft((current) => ({
+                    ...current,
+                    timezone: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="defaultLanguage">Default Language</label>
+              <input
+                type="text"
+                id="defaultLanguage"
+                placeholder="en"
+                value={
+                  tenantConfigDraft.defaultLanguage ??
+                  tenantConfig?.defaultLanguage ??
+                  'en'
+                }
+                onChange={(e) =>
+                  setTenantConfigDraft((current) => ({
+                    ...current,
+                    defaultLanguage: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div className="tenant-business-hours-grid">
+              <div className="form-group">
+                <label htmlFor="business-mon">Mon</label>
+                <input
+                  type="text"
+                  id="business-mon"
+                  placeholder="09:00-18:00"
+                  value={resolvedBusinessHours.mon}
+                  onChange={(e) => setBusinessHour('mon', e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="business-tue">Tue</label>
+                <input
+                  type="text"
+                  id="business-tue"
+                  placeholder="09:00-18:00"
+                  value={resolvedBusinessHours.tue}
+                  onChange={(e) => setBusinessHour('tue', e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="business-wed">Wed</label>
+                <input
+                  type="text"
+                  id="business-wed"
+                  placeholder="09:00-18:00"
+                  value={resolvedBusinessHours.wed}
+                  onChange={(e) => setBusinessHour('wed', e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="business-thu">Thu</label>
+                <input
+                  type="text"
+                  id="business-thu"
+                  placeholder="09:00-18:00"
+                  value={resolvedBusinessHours.thu}
+                  onChange={(e) => setBusinessHour('thu', e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="business-fri">Fri</label>
+                <input
+                  type="text"
+                  id="business-fri"
+                  placeholder="09:00-18:00"
+                  value={resolvedBusinessHours.fri}
+                  onChange={(e) => setBusinessHour('fri', e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="business-sat">Sat</label>
+                <input
+                  type="text"
+                  id="business-sat"
+                  placeholder="10:00-14:00"
+                  value={resolvedBusinessHours.sat}
+                  onChange={(e) => setBusinessHour('sat', e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="business-sun">Sun</label>
+                <input
+                  type="text"
+                  id="business-sun"
+                  placeholder="closed"
+                  value={resolvedBusinessHours.sun}
+                  onChange={(e) => setBusinessHour('sun', e.target.value)}
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={updatingTenantConfig}
+            >
+              {updatingTenantConfig ? 'Saving...' : 'Save Tenant Settings'}
+            </button>
+          </form>
+
+          <div className="tenant-logo-upload">
+            <label htmlFor="tenant-logo-upload">Tenant Logo</label>
+            <input
+              id="tenant-logo-upload"
+              type="file"
+              accept="image/*"
+              onChange={(event) => {
+                const nextFile = event.target.files?.[0] ?? null;
+                setLogoFile(nextFile);
+              }}
+            />
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={handleTenantLogoUpload}
+              disabled={isUploadingLogo}
+            >
+              {isUploadingLogo ? 'Uploading...' : 'Upload Logo'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="profile-section">
         <h2>Profile Details</h2>

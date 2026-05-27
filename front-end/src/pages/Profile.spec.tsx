@@ -10,6 +10,7 @@ import {
   UPDATE_USER,
   CHANGE_PASSWORD,
   LOGOUT,
+  MY_TENANT,
   MY_TENANTS,
   SWITCH_TENANT,
 } from '../graphql/queries';
@@ -135,6 +136,31 @@ const makeMyTenantsMock = (
   },
 });
 
+const makeMyTenantMock = (
+  overrides: Partial<{
+    id: string;
+    name: string;
+    slug: string;
+    logoUrl: string | null;
+  }> = {},
+) => ({
+  request: {
+    query: MY_TENANT,
+    variables: {},
+  },
+  result: {
+    data: {
+      myTenant: {
+        id: 'tenant-1',
+        name: 'Tenant One',
+        slug: 'tenant-one',
+        logoUrl: null,
+        ...overrides,
+      },
+    },
+  },
+});
+
 describe('Profile Page', () => {
   let localStorageMock: {
     getItem: ReturnType<typeof vi.fn>;
@@ -151,7 +177,7 @@ describe('Profile Page', () => {
     ],
   ) => {
     return render(
-      <MockedProvider mocks={mocks}>
+      <MockedProvider mocks={[makeMyTenantMock(), ...mocks]}>
         <MemoryRouter>
           <AuthProvider>
             <Profile />

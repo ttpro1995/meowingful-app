@@ -109,6 +109,77 @@ export const MY_TENANTS = gql`
   }
 `;
 
+export const MY_TENANT = gql`
+  query MyTenant {
+    myTenant {
+      id
+      name
+      slug
+      logoUrl
+    }
+  }
+`;
+
+export const TENANT_CONFIG = gql`
+  query TenantConfig {
+    tenantConfig {
+      id
+      tenantId
+      logoUrl
+      primaryColor
+      subdomain
+      timezone
+      defaultLanguage
+      businessHours {
+        mon
+        tue
+        wed
+        thu
+        fri
+        sat
+        sun
+      }
+      features {
+        crm
+        elearning
+        call_center
+        live_classes
+        marketplace
+      }
+    }
+  }
+`;
+
+export const UPDATE_TENANT_CONFIG = gql`
+  mutation UpdateTenantConfig($input: UpdateTenantConfigInput!) {
+    updateTenantConfig(input: $input) {
+      id
+      tenantId
+      logoUrl
+      primaryColor
+      subdomain
+      timezone
+      defaultLanguage
+      businessHours {
+        mon
+        tue
+        wed
+        thu
+        fri
+        sat
+        sun
+      }
+      features {
+        crm
+        elearning
+        call_center
+        live_classes
+        marketplace
+      }
+    }
+  }
+`;
+
 export const SWITCH_TENANT = gql`
   mutation SwitchTenant($tenantId: String!) {
     switchTenant(tenantId: $tenantId) {

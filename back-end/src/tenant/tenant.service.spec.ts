@@ -56,6 +56,9 @@ describe('TenantService', () => {
       slug: 'tenant-1',
       planTier: 'basic',
       contactEmail: 'owner@tenant-1.test',
+      config: {
+        logoUrl: 'https://cdn.example.com/logo.png',
+      },
       isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -67,6 +70,13 @@ describe('TenantService', () => {
     expect(tenant.id).toBe('tenant-1');
     expect(findUniqueMock).toHaveBeenCalledWith({
       where: { id: 'tenant-1' },
+      include: {
+        config: {
+          select: {
+            logoUrl: true,
+          },
+        },
+      },
     });
   });
 

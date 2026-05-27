@@ -11,6 +11,26 @@ type AuthPayload {
   user: User!
 }
 
+type BusinessHours {
+  fri: String
+  mon: String
+  sat: String
+  sun: String
+  thu: String
+  tue: String
+  wed: String
+}
+
+input BusinessHoursInput {
+  fri: String
+  mon: String
+  sat: String
+  sun: String
+  thu: String
+  tue: String
+  wed: String
+}
+
 input ChangePasswordInput {
   currentPassword: String!
   newPassword: String!
@@ -115,9 +135,11 @@ type Mutation {
   register(input: RegisterInput!): AuthPayload!
   removeMember(userId: String!): Boolean!
   revokePermission(permissionCode: String!, roleName: RoleName!, tenantId: String!): Boolean!
+  setFeatureFlag(enabled: Boolean!, feature: TenantFeature!, tenantId: String!): TenantConfig!
   switchTenant(tenantId: String!): AuthPayload!
   updateMemberRoles(input: UpdateMemberRolesInput!): TenantMember!
   updateTenant(input: UpdateTenantInput!, tenantId: String!): Tenant!
+  updateTenantConfig(input: UpdateTenantConfigInput!): TenantConfig!
   updateUser(input: UpdateUserInput!, userId: String!): User!
   updateUserProfile(input: UpdateUserProfileInput!, userId: String!): User!
 }
@@ -179,6 +201,7 @@ type Query {
   myTenant: Tenant!
   myTenants: MyTenantsPayload!
   rolePermissions(query: RolePermissionsQueryInput, tenantId: String!): PaginatedRolePermissions!
+  tenantConfig: TenantConfig!
   tenants(query: TenantsQueryInput): PaginatedTenants!
   users(query: UsersQueryInput): PaginatedUsers!
 }
@@ -237,10 +260,41 @@ type Tenant {
   createdAt: DateTime!
   id: String!
   isActive: Boolean!
+  logoUrl: String
   name: String!
   planTier: String!
   slug: String!
   updatedAt: DateTime!
+}
+
+type TenantConfig {
+  businessHours: BusinessHours
+  createdAt: DateTime!
+  defaultLanguage: String!
+  features: TenantFeatures!
+  id: String!
+  logoUrl: String
+  primaryColor: String!
+  subdomain: String
+  tenantId: String!
+  timezone: String!
+  updatedAt: DateTime!
+}
+
+enum TenantFeature {
+  CALL_CENTER
+  CRM
+  ELEARNING
+  LIVE_CLASSES
+  MARKETPLACE
+}
+
+type TenantFeatures {
+  call_center: Boolean!
+  crm: Boolean!
+  elearning: Boolean!
+  live_classes: Boolean!
+  marketplace: Boolean!
 }
 
 type TenantListItem {
@@ -249,6 +303,7 @@ type TenantListItem {
   createdAt: DateTime!
   id: String!
   isActive: Boolean!
+  logoUrl: String
   name: String!
   planTier: String!
   slug: String!
@@ -294,6 +349,14 @@ input TenantsQueryInput {
 input UpdateMemberRolesInput {
   roleIds: [String!]!
   userId: String!
+}
+
+input UpdateTenantConfigInput {
+  businessHours: BusinessHoursInput
+  defaultLanguage: String
+  primaryColor: String
+  subdomain: String
+  timezone: String
 }
 
 input UpdateTenantInput {

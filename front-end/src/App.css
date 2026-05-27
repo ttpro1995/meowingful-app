@@ -206,3 +206,68 @@ h2 {
 .button-group .btn-secondary {
   flex: 1;
 }
+
+.tenant-nav {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  margin-bottom: 20px;
+  border: 2px solid #3498db;
+  border-radius: 10px;
+  background: white;
+}
+
+.tenant-nav-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid #e5e7eb;
+}
+
+.tenant-nav-logo-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.tenant-nav-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tenant-nav-meta strong {
+  color: #1f2937;
+}
+
+.tenant-nav-meta span {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.tenant-config-form {
+  margin-bottom: 16px;
+}
+
+.tenant-business-hours-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tenant-logo-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .tenant-business-hours-grid {
+    grid-template-columns: 1fr;
+  }
+}

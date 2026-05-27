@@ -24,11 +24,27 @@ model Tenant {
   isActive     Boolean @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  config       TenantConfig?
   users        User[]
   authRecords  Auth[]
   roles        Role[]
   userRoles    UserTenantRole[]
   invitations  Invitation[]
+}
+
+model TenantConfig {
+  id              String   @id @default(uuid())
+  tenantId        String   @unique
+  logoUrl         String?
+  primaryColor    String   @default("#3B82F6")
+  subdomain       String?  @unique
+  timezone        String   @default("UTC")
+  defaultLanguage String   @default("en")
+  businessHours   Json?
+  features        Json     @default("{\"crm\":false,\"elearning\":false,\"call_center\":false,\"live_classes\":false,\"marketplace\":false}")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model User {
