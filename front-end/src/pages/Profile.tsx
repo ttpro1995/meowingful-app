@@ -85,7 +85,7 @@ export default function Profile() {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [selectedTenantId, setSelectedTenantId] = useState('');
+  const [tenantSelectionOverride, setTenantSelectionOverride] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -122,6 +122,21 @@ export default function Profile() {
     [authUser?.tenantId, memberships],
   );
 
+  const selectedTenantId = useMemo(() => {
+    if (
+      tenantSelectionOverride &&
+      memberships.some((membership) => membership.tenantId === tenantSelectionOverride)
+    ) {
+      return tenantSelectionOverride;
+    }
+
+    if (authUser?.tenantId) {
+      return authUser.tenantId;
+    }
+
+    return memberships[0]?.tenantId ?? '';
+  }, [authUser?.tenantId, memberships, tenantSelectionOverride]);
+
   // Initialize name/bio from data when editing starts (lazy init via function)
   const initializeForm = () => {
     if (data?.getUser) {
@@ -136,18 +151,6 @@ export default function Profile() {
       navigate('/login');
     }
   }, [token, navigate]);
-
-  useEffect(() => {
-    if (authUser?.tenantId) {
-      setSelectedTenantId(authUser.tenantId);
-      return;
-    }
-
-    const firstTenantId = memberships[0]?.tenantId;
-    if (firstTenantId) {
-      setSelectedTenantId(firstTenantId);
-    }
-  }, [authUser?.tenantId, memberships]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -291,7 +294,7 @@ export default function Profile() {
               <select
                 id="tenantId"
                 value={selectedTenantId}
-                onChange={(e) => setSelectedTenantId(e.target.value)}
+                onChange={(e) => setTenantSelectionOverride(e.target.value)}
               >
                 {memberships.map((membership) => (
                   <option key={membership.tenantId} value={membership.tenantId}>
