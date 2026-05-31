@@ -24,7 +24,7 @@ ADD CONSTRAINT "TenantConfig_tenantId_fkey"
 FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- Backfill a config row for already existing tenants.
-INSERT INTO "TenantConfig" ("id", "tenantId")
-SELECT CONCAT(t."id", '-config'), t."id"
+INSERT INTO "TenantConfig" ("id", "tenantId", "updatedAt")
+SELECT CONCAT(t."id", '-config'), t."id", CURRENT_TIMESTAMP
 FROM "Tenant" t
 ON CONFLICT ("tenantId") DO NOTHING;

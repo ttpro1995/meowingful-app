@@ -134,6 +134,13 @@ model TenantConfig {
 - `createLead` integration assertions remain blocked until CRM lead mutations are available in STORY-E03-01.
 - Timezone-driven scheduled notifications remain in STORY-E04-04 scope.
 
+### Post-Completion Regression Fix (2026-05-31)
+
+- CI `prisma migrate deploy` failed on fresh databases with `P3018` (`TenantConfig.updatedAt` not-null violation).
+- Root cause: migration backfill inserted only `id` and `tenantId` into `TenantConfig` while `updatedAt` was required.
+- Fix applied in `back-end/prisma/migrations/20260528090000_story_e02_04_tenant_config/migration.sql`:
+  - Backfill now inserts `updatedAt = CURRENT_TIMESTAMP`.
+
 ## Dependencies
 
 ### Blocked By
