@@ -9,32 +9,9 @@ jobs:
   frontend-e2e:
     name: Frontend E2E Tests (Playwright)
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_DB: test_db
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s
-          --health-retries 5
     env:
-      DATABASE_URL: postgresql://test:test@localhost:5432/test_db?schema=public
-      REDIS_HOST: localhost
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ''
-      FRONTEND_URL: http://localhost:8500
-      VITE_GRAPHQL_ENDPOINT: http://localhost:3500/graphql
+      CI: true
+      PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -51,32 +28,24 @@ jobs:
           cd front-end
           npm ci
 
-      - name: Install Playwright browsers
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('front-end/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright chromium
+        timeout-minutes: 15
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
           cd front-end
-          npx playwright install --with-deps
-
-      - name: Build frontend
-        run: |
-          cd front-end
-          npm run build
-
-      - name: Setup backend for E2E
-        run: |
-          cd back-end
-          npm ci
-          npx prisma generate
-          npx prisma migrate deploy
-          npm run build
-
-      - name: Start backend server
-        run: |
-          cd back-end
-          PORT=3500 npm run start:prod &
-          timeout 60 bash -c 'until curl -s http://localhost:3500/api/v1/health >/dev/null; do sleep 2; done' || echo "Backend may not have health endpoint, proceeding anyway"
-          sleep 5
+          npx playwright install --with-deps chromium
 
       - name: Run Frontend E2E tests
+        timeout-minutes: 15
         run: |
           cd front-end
           npm run test:e2e
