@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CI: true
-      PLAYWRIGHT_BROWSERS_PATH: ~/.cache/ms-playwright
+      PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -29,20 +29,28 @@ jobs:
           npm ci
 
       - name: Cache Playwright browsers
+        id: playwright-cache
         uses: actions/cache@v4
         with:
-          path: ~/.cache/ms-playwright
+          path: /home/runner/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('front-end/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-playwright-
 
-      - name: Install Playwright chromium
-        timeout-minutes: 15
+      - name: Install Playwright system dependencies
+        timeout-minutes: 10
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
           cd front-end
-          npx playwright install --with-deps chromium
+          npx playwright install-deps chromium
+
+      - name: Install Playwright chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 30
+        run: |
+          cd front-end
+          npx playwright install chromium --no-shell
 
       - name: Run Frontend E2E tests
         timeout-minutes: 15
