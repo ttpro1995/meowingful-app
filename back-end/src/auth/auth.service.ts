@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   ConflictException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma, RoleName, UserRole } from '@prisma/client';
@@ -29,6 +30,7 @@ import {
 } from '../shared/pagination/filter.types';
 import { SortDirection } from '../shared/pagination/pagination.args';
 import { paginate } from '../shared/pagination/paginate';
+import { DashboardService } from '../dashboard/dashboard.service';
 
 interface SessionTokenPayload extends JwtPayload {
   sub: string;
@@ -62,6 +64,7 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private cacheService: CacheService,
+    @Optional() private readonly dashboardService?: DashboardService,
   ) {}
 
   private getJwtSecret(): string {
@@ -329,6 +332,8 @@ export class AuthService {
 
       return newUser;
     });
+
+    await this.dashboardService?.recordUserJoined(tenant.id, user.username);
 
     return this.mapUser(user);
   }

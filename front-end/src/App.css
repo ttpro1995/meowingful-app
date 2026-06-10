@@ -260,6 +260,141 @@ h2 {
   gap: 12px;
 }
 
+.dashboard-entry-link-row {
+  margin-top: 16px;
+}
+
+.dashboard-entry-link-row .btn-secondary {
+  width: 100%;
+}
+
+.dashboard-container {
+  max-width: 1080px;
+}
+
+.dashboard-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.dashboard-subtitle {
+  color: #4b5563;
+}
+
+.dashboard-back-link {
+  width: auto;
+}
+
+.dashboard-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.dashboard-filter-row select {
+  max-width: 220px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.dashboard-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 18px;
+}
+
+.dashboard-card h2 {
+  font-size: 1rem;
+  margin-bottom: 8px;
+}
+
+.dashboard-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.dashboard-note {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.dashboard-empty {
+  color: #6b7280;
+}
+
+.dashboard-activity-list {
+  list-style: none;
+  margin-top: 8px;
+}
+
+.dashboard-activity-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.dashboard-activity-item:last-child {
+  border-bottom: none;
+}
+
+.dashboard-activity-item p {
+  color: #4b5563;
+  margin-top: 2px;
+}
+
+.dashboard-activity-item time {
+  color: #6b7280;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-header-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dashboard-filter-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .dashboard-filter-row select {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-activity-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
 .tenant-logo-upload {
   display: flex;
   flex-direction: column;

@@ -6,6 +6,7 @@ import Register from './pages/Register';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
 import InviteResponse from './pages/InviteResponse';
+import Dashboard from './pages/Dashboard';
 import './App.css';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -25,6 +26,14 @@ function AppContent() {
           element={
             <PrivateRoute>
               <Profile />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/dashboard"
+          element={
+            <PrivateRoute>
+              <Dashboard />
             </PrivateRoute>
           }
         />
