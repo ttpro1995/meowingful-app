@@ -9,10 +9,15 @@ import {
 } from './rbac.types';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { getTenantContext } from '../tenant/tenant-context.storage';
-import { RoleName } from '@prisma/client';
+import {
+  AuditAction as PrismaAuditAction,
+  RoleName,
+} from '@prisma/client';
 import { EnumFilter, StringFilter } from '../shared/pagination/filter.types';
 import { SortDirection } from '../shared/pagination/pagination.args';
 import { paginate } from '../shared/pagination/paginate';
+import { Auditable, AuditAction } from '../audit/audit.decorators';
+import { createUpdateDiff } from '../audit/audit.helpers';
 
 @Resolver()
 export class RbacResolver {
@@ -226,6 +231,19 @@ export class RbacResolver {
   }
 
   @Mutation(() => Boolean)
+  @Auditable('RolePermission')
+  @AuditAction(({ args }) => ({
+    action: PrismaAuditAction.PERMISSION_GRANTED,
+    resourceId:
+      typeof args.tenantId === 'string' && args.tenantId
+        ? `${args.tenantId}:${String(args.roleName)}:${String(args.permissionCode)}`
+        : 'unknown',
+    diff: createUpdateDiff(null, {
+      roleName: args.roleName,
+      permissionCode: args.permissionCode,
+      granted: true,
+    }),
+  }))
   async grantPermission(
     @Args('tenantId') tenantId: string,
     @Args('roleName', { type: () => RoleName }) roleName: RoleName,
@@ -252,6 +270,19 @@ export class RbacResolver {
   }
 
   @Mutation(() => Boolean)
+  @Auditable('RolePermission')
+  @AuditAction(({ args }) => ({
+    action: PrismaAuditAction.PERMISSION_REVOKED,
+    resourceId:
+      typeof args.tenantId === 'string' && args.tenantId
+        ? `${args.tenantId}:${String(args.roleName)}:${String(args.permissionCode)}`
+        : 'unknown',
+    diff: createUpdateDiff(null, {
+      roleName: args.roleName,
+      permissionCode: args.permissionCode,
+      granted: false,
+    }),
+  }))
   async revokePermission(
     @Args('tenantId') tenantId: string,
     @Args('roleName', { type: () => RoleName }) roleName: RoleName,

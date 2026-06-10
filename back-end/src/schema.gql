@@ -13,6 +13,46 @@ type ActivityEvent {
   type: String!
 }
 
+enum AuditAction {
+  CREATE
+  DELETE
+  LOGIN_FAILED
+  LOGIN_SUCCESS
+  PERMISSION_GRANTED
+  PERMISSION_REVOKED
+  UPDATE
+}
+
+type AuditLogEntry {
+  action: AuditAction!
+  actorEmail: String
+  actorId: String
+  createdAt: DateTime!
+  diff: String
+  id: String!
+  ipAddress: String
+  resource: String!
+  resourceId: String!
+  tenantId: String!
+}
+
+input AuditLogFilterInput {
+  action: EnumFilter
+  actorId: StringFilter
+  createdAt: DateFilter
+  resource: StringFilter
+}
+
+input AuditLogsQueryInput {
+  after: String @deprecated(reason: "Cursor pagination is deprecated; use pagination.page")
+  before: String @deprecated(reason: "Cursor pagination is deprecated; use pagination.page")
+  filter: AuditLogFilterInput
+  first: Int @deprecated(reason: "Use pagination.limit instead")
+  last: Int @deprecated(reason: "Use pagination.limit instead")
+  orderBy: OrderByArgs
+  pagination: PaginationArgs
+}
+
 type AuthPayload {
   accessToken: String!
   user: User!
@@ -185,6 +225,13 @@ type PageInfo {
   totalPages: Int!
 }
 
+type PaginatedAuditLogs {
+  auditLogs: [AuditLogEntry!]!
+  data: [AuditLogEntry!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
 type PaginatedMembers {
   data: [TenantMember!]!
   members: [TenantMember!]!
@@ -219,6 +266,7 @@ input PaginationArgs {
 }
 
 type Query {
+  auditLogs(query: AuditLogsQueryInput): PaginatedAuditLogs!
   dashboardMetrics(dateRange: DashboardDateRangeInput): DashboardMetrics!
   getMe(userId: String!): MePayload!
   getUser(userId: String!): User!

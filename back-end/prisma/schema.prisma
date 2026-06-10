@@ -15,21 +15,52 @@ enum UserRole {
   SUPER_ADMIN
 }
 
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  PERMISSION_GRANTED
+  PERMISSION_REVOKED
+}
+
 model Tenant {
-  id           String @id @default(uuid())
+  id           String           @id @default(uuid())
   name         String
-  slug         String @unique
-  planTier     String @default("basic")
+  slug         String           @unique
+  planTier     String           @default("basic")
   contactEmail String
-  isActive     Boolean @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  isActive     Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
   config       TenantConfig?
   users        User[]
   authRecords  Auth[]
   roles        Role[]
   userRoles    UserTenantRole[]
   invitations  Invitation[]
+  auditLogs    AuditLog[]
+}
+
+model AuditLog {
+  id         String      @id @default(uuid())
+  tenantId   String
+  actorId    String?
+  actorEmail String?
+  action     AuditAction
+  resource   String
+  resourceId String
+  diff       Json?
+  ipAddress  String?
+  archivedAt DateTime?
+  createdAt  DateTime    @default(now())
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actor      User?       @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, resource, createdAt])
+  @@index([tenantId, actorId, createdAt])
+  @@index([tenantId, archivedAt, createdAt])
 }
 
 model TenantConfig {
@@ -48,19 +79,20 @@ model TenantConfig {
 }
 
 model User {
-  id          String           @id @default(uuid())
-  tenantId    String
-  username    String
-  name        String
-  bio         String?
-  email       String?          @unique
-  role        UserRole         @default(USER)
-  deletedAt   DateTime?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  tenant      Tenant           @relation(fields: [tenantId], references: [id])
-  auth        Auth?
-  userRoles   UserTenantRole[]
+  id        String           @id @default(uuid())
+  tenantId  String
+  username  String
+  name      String
+  bio       String?
+  email     String?          @unique
+  role      UserRole         @default(USER)
+  deletedAt DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  tenant    Tenant           @relation(fields: [tenantId], references: [id])
+  auth      Auth?
+  userRoles UserTenantRole[]
+  auditLogs AuditLog[]
 
   @@unique([tenantId, username])
   @@index([tenantId])
@@ -102,6 +134,7 @@ model Role {
   permissions RolePermission[]
   userRoles   UserTenantRole[]
   invitations Invitation[]
+
   @@unique([tenantId, name])
 }
 
@@ -113,6 +146,7 @@ model UserTenantRole {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
   @@id([userId, tenantId, roleId])
   @@index([tenantId, userId])
   @@index([tenantId, roleId])
@@ -137,7 +171,7 @@ model Invitation {
 
 model Permission {
   id          String           @id @default(uuid())
-  code        String           @unique  // e.g. "lead:create"
+  code        String           @unique // e.g. "lead:create"
   description String
   rolePerms   RolePermission[]
 }
@@ -147,5 +181,6 @@ model RolePermission {
   permissionId String
   role         Role       @relation(fields: [roleId], references: [id])
   permission   Permission @relation(fields: [permissionId], references: [id])
+
   @@id([roleId, permissionId])
 }

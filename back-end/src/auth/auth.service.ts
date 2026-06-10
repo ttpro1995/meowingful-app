@@ -6,7 +6,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, RoleName, UserRole } from '@prisma/client';
+import { AuditAction, Prisma, RoleName, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { randomUUID } from 'crypto';
@@ -31,6 +31,7 @@ import {
 import { SortDirection } from '../shared/pagination/pagination.args';
 import { paginate } from '../shared/pagination/paginate';
 import { DashboardService } from '../dashboard/dashboard.service';
+import { AuditService } from '../audit/audit.service';
 
 interface SessionTokenPayload extends JwtPayload {
   sub: string;
@@ -65,6 +66,7 @@ export class AuthService {
     private prisma: PrismaService,
     private cacheService: CacheService,
     @Optional() private readonly dashboardService?: DashboardService,
+    @Optional() private readonly auditService?: AuditService,
   ) {}
 
   private getJwtSecret(): string {
@@ -338,7 +340,10 @@ export class AuthService {
     return this.mapUser(user);
   }
 
-  async login(input: LoginInput): Promise<SessionAuthPayload> {
+  async login(
+    input: LoginInput,
+    options?: { ipAddress?: string | null },
+  ): Promise<SessionAuthPayload> {
     const { username, password, tenantSlug } = input;
     const tenant = await this.resolveTenantBySlug(tenantSlug);
 
@@ -358,6 +363,12 @@ export class AuthService {
     });
 
     if (!auth) {
+      await this.auditService?.logLoginEvent({
+        tenantId: tenant.id,
+        username,
+        action: AuditAction.LOGIN_FAILED,
+        ipAddress: options?.ipAddress,
+      });
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -365,6 +376,13 @@ export class AuthService {
     const isValid = await bcrypt.compare(password, auth.passwordHash);
 
     if (!isValid) {
+      await this.auditService?.logLoginEvent({
+        tenantId: tenant.id,
+        username,
+        actorId: auth.userId,
+        action: AuditAction.LOGIN_FAILED,
+        ipAddress: options?.ipAddress,
+      });
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -374,6 +392,13 @@ export class AuthService {
     );
 
     if (!hasMembership) {
+      await this.auditService?.logLoginEvent({
+        tenantId: tenant.id,
+        username,
+        actorId: auth.userId,
+        action: AuditAction.LOGIN_FAILED,
+        ipAddress: options?.ipAddress,
+      });
       throw new UnauthorizedException('UNAUTHORIZED');
     }
 
@@ -382,6 +407,14 @@ export class AuthService {
       auth.tenantId,
       auth.user.role,
     );
+
+    await this.auditService?.logLoginEvent({
+      tenantId: tenant.id,
+      username,
+      actorId: auth.userId,
+      action: AuditAction.LOGIN_SUCCESS,
+      ipAddress: options?.ipAddress,
+    });
 
     return {
       accessToken: tokenPair.accessToken,
