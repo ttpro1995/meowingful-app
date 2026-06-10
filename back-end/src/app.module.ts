@@ -16,6 +16,7 @@ import { TenantModule } from './tenant/tenant.module';
 import { RbacModule } from './rbac/rbac.module';
 import { MembershipModule } from './membership/membership.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { AuditModule } from './audit/audit.module';
 import { formatGraphQLError } from './shared/errors/error-format.plugin';
 import { UserError } from './shared/errors/user-error.type';
 
@@ -81,6 +82,7 @@ import { UserError } from './shared/errors/user-error.type';
     RbacModule,
     MembershipModule,
     DashboardModule,
+    AuditModule,
   ],
   controllers: [AppController],
   providers: [AppService],

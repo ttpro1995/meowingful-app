@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditAction } from '@prisma/client';
 import {
   ConflictException,
   UnauthorizedException,
@@ -10,6 +11,7 @@ import * as bcrypt from 'bcryptjs';
 import { UsersQueryInput } from './auth.types';
 import { CacheService } from '../redis/cache.service';
 import { SortDirection } from '../shared/pagination/pagination.args';
+import { AuditService } from '../audit/audit.service';
 
 describe('AuthService', () => {
   let authService: AuthService;
@@ -64,12 +66,17 @@ describe('AuthService', () => {
     del: jest.fn(),
   };
 
+  const mockAuditService = {
+    logLoginEvent: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: CacheService, useValue: mockCacheService },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 
@@ -209,6 +216,12 @@ describe('AuthService', () => {
       await expect(authService.login(loginInput)).rejects.toThrow(
         UnauthorizedException,
       );
+      expect(mockAuditService.logLoginEvent).toHaveBeenCalledWith({
+        tenantId: defaultTenant.id,
+        username: loginInput.username,
+        action: AuditAction.LOGIN_FAILED,
+        ipAddress: undefined,
+      });
     });
 
     it('should throw UnauthorizedException if password is incorrect', async () => {
@@ -243,6 +256,13 @@ describe('AuthService', () => {
       await expect(authService.login(loginInput)).rejects.toThrow(
         UnauthorizedException,
       );
+      expect(mockAuditService.logLoginEvent).toHaveBeenCalledWith({
+        tenantId: defaultTenant.id,
+        username: loginInput.username,
+        actorId: 'user-uuid',
+        action: AuditAction.LOGIN_FAILED,
+        ipAddress: undefined,
+      });
     });
   });
 

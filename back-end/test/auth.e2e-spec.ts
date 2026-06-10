@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
+import { UserRole } from '@prisma/client';
 import { AppModule } from './../src/app.module';
 import { PrismaService } from './../src/prisma/prisma.service';
 
@@ -39,6 +40,7 @@ describe('AuthResolver (e2e)', () => {
 
   afterAll(async () => {
     // Clean up test data
+    await prismaService.auditLog.deleteMany();
     await prismaService.auth.deleteMany();
     await prismaService.user.deleteMany();
     await app.close();
@@ -444,6 +446,380 @@ describe('AuthResolver (e2e)', () => {
           expect(body.errors?.[0].message).toContain(
             'Refresh token has been revoked',
           );
+        });
+    });
+  });
+
+  describe('/graphql (POST) - Audit Logs', () => {
+    it('should create audit logs for profile update and allow filtering by actor and date', async () => {
+      const username = `auditadmin${Date.now()}`;
+      const registerRes = await request(
+        app.getHttpServer() as Parameters<typeof request>[0],
+      )
+        .post('/graphql')
+        .send({
+          query: `
+            mutation Register($input: RegisterInput!) {
+              register(input: $input) {
+                user {
+                  id
+                }
+              }
+            }
+          `,
+          variables: {
+            input: {
+              username,
+              password: 'password123',
+              name: 'Audit Admin',
+            },
+          },
+        })
+        .expect(200);
+
+      const registered = registerRes.body as GraphQLResponse<{
+        register: { user: { id: string } };
+      }>;
+
+      const userId = registered.data?.register.user.id;
+      expect(userId).toBeDefined();
+
+      await prismaService.user.update({
+        where: { id: userId },
+        data: { role: UserRole.TENANT_ADMIN },
+      });
+
+      const loginRes = await request(
+        app.getHttpServer() as Parameters<typeof request>[0],
+      )
+        .post('/graphql')
+        .send({
+          query: `
+            mutation Login($input: LoginInput!) {
+              login(input: $input) {
+                accessToken
+              }
+            }
+          `,
+          variables: {
+            input: {
+              username,
+              password: 'password123',
+            },
+          },
+        })
+        .expect(200);
+
+      const accessToken = (loginRes.body as GraphQLResponse<{
+        login: { accessToken: string };
+      }>).data?.login.accessToken;
+      expect(accessToken).toBeDefined();
+
+      const fromDate = new Date().toISOString();
+
+      await request(app.getHttpServer() as Parameters<typeof request>[0])
+        .post('/graphql')
+        .set('Authorization', `Bearer ${accessToken ?? ''}`)
+        .send({
+          query: `
+            mutation UpdateUserProfile($userId: String!, $input: UpdateUserProfileInput!) {
+              updateUserProfile(userId: $userId, input: $input) {
+                id
+                name
+              }
+            }
+          `,
+          variables: {
+            userId,
+            input: {
+              name: 'Audit Admin Updated',
+            },
+          },
+        })
+        .expect(200);
+
+      const auditRes = await request(
+        app.getHttpServer() as Parameters<typeof request>[0],
+      )
+        .post('/graphql')
+        .set('Authorization', `Bearer ${accessToken ?? ''}`)
+        .send({
+          query: `
+            query AuditLogs($query: AuditLogsQueryInput) {
+              auditLogs(query: $query) {
+                totalCount
+                auditLogs {
+                  id
+                  actorId
+                  action
+                  resource
+                  resourceId
+                  diff
+                  createdAt
+                }
+              }
+            }
+          `,
+          variables: {
+            query: {
+              filter: {
+                actorId: { equals: userId },
+                action: { equals: 'UPDATE' },
+                createdAt: { gte: fromDate },
+              },
+              pagination: { page: 1, limit: 20 },
+            },
+          },
+        })
+        .expect(200);
+
+      const auditBody = auditRes.body as GraphQLResponse<{
+        auditLogs: {
+          totalCount: number;
+          auditLogs: Array<{
+            actorId: string;
+            action: string;
+            resource: string;
+            resourceId: string;
+            diff?: string;
+          }>;
+        };
+      }>;
+
+      expect(auditBody.data?.auditLogs.totalCount).toBeGreaterThan(0);
+      const updatedUserLog = auditBody.data?.auditLogs.auditLogs.find(
+        (entry) =>
+          entry.resource === 'User' &&
+          entry.action === 'UPDATE' &&
+          entry.resourceId === userId,
+      );
+      expect(updatedUserLog).toBeDefined();
+
+      const futureRangeRes = await request(
+        app.getHttpServer() as Parameters<typeof request>[0],
+      )
+        .post('/graphql')
+        .set('Authorization', `Bearer ${accessToken ?? ''}`)
+        .send({
+          query: `
+            query AuditLogs($query: AuditLogsQueryInput) {
+              auditLogs(query: $query) {
+                totalCount
+              }
+            }
+          `,
+          variables: {
+            query: {
+              filter: {
+                createdAt: { gte: '2999-01-01T00:00:00.000Z' },
+              },
+            },
+          },
+        })
+        .expect(200);
+
+      const futureBody = futureRangeRes.body as GraphQLResponse<{
+        auditLogs: {
+          totalCount: number;
+        };
+      }>;
+      expect(futureBody.data?.auditLogs.totalCount).toBe(0);
+    });
+
+    it('should log failed login attempts', async () => {
+      const username = `auditloginfail${Date.now()}`;
+
+      const registerRes = await request(
+        app.getHttpServer() as Parameters<typeof request>[0],
+      )
+        .post('/graphql')
+        .send({
+          query: `
+            mutation Register($input: RegisterInput!) {
+              register(input: $input) {
+                user {
+                  id
+                }
+              }
+            }
+          `,
+          variables: {
+            input: {
+              username,
+              password: 'password123',
+              name: 'Audit Failed Login',
+            },
+          },
+        })
+        .expect(200);
+
+      const userId = (registerRes.body as GraphQLResponse<{
+        register: { user: { id: string } };
+      }>).data?.register.user.id;
+      expect(userId).toBeDefined();
+
+      await prismaService.user.update({
+        where: { id: userId },
+        data: { role: UserRole.TENANT_ADMIN },
+      });
+
+      await request(app.getHttpServer() as Parameters<typeof request>[0])
+        .post('/graphql')
+        .send({
+          query: `
+            mutation Login($input: LoginInput!) {
+              login(input: $input) {
+                accessToken
+              }
+            }
+          `,
+          variables: {
+            input: {
+              username,
+              password: 'wrong-password',
+            },
+          },
+        })
+        .expect(200);
+
+      const loginRes = await request(
+        app.getHttpServer() as Parameters<typeof request>[0],
+      )
+        .post('/graphql')
+        .send({
+          query: `
+            mutation Login($input: LoginInput!) {
+              login(input: $input) {
+                accessToken
+              }
+            }
+          `,
+          variables: {
+            input: {
+              username,
+              password: 'password123',
+            },
+          },
+        })
+        .expect(200);
+
+      const accessToken = (loginRes.body as GraphQLResponse<{
+        login: { accessToken: string };
+      }>).data?.login.accessToken;
+      expect(accessToken).toBeDefined();
+
+      const auditRes = await request(
+        app.getHttpServer() as Parameters<typeof request>[0],
+      )
+        .post('/graphql')
+        .set('Authorization', `Bearer ${accessToken ?? ''}`)
+        .send({
+          query: `
+            query AuditLogs($query: AuditLogsQueryInput) {
+              auditLogs(query: $query) {
+                auditLogs {
+                  action
+                  actorId
+                }
+              }
+            }
+          `,
+          variables: {
+            query: {
+              filter: {
+                actorId: { equals: userId },
+                action: { equals: 'LOGIN_FAILED' },
+              },
+            },
+          },
+        })
+        .expect(200);
+
+      const auditBody = auditRes.body as GraphQLResponse<{
+        auditLogs: {
+          auditLogs: Array<{
+            action: string;
+            actorId?: string;
+          }>;
+        };
+      }>;
+
+      expect(
+        auditBody.data?.auditLogs.auditLogs.some(
+          (entry) =>
+            entry.action === 'LOGIN_FAILED' && entry.actorId === userId,
+        ),
+      ).toBe(true);
+    });
+
+    it('should deny audit log query for non-admin users', async () => {
+      const username = `audituser${Date.now()}`;
+
+      await request(app.getHttpServer() as Parameters<typeof request>[0])
+        .post('/graphql')
+        .send({
+          query: `
+            mutation Register($input: RegisterInput!) {
+              register(input: $input) {
+                user {
+                  id
+                }
+              }
+            }
+          `,
+          variables: {
+            input: {
+              username,
+              password: 'password123',
+              name: 'Audit User',
+            },
+          },
+        })
+        .expect(200);
+
+      const loginRes = await request(
+        app.getHttpServer() as Parameters<typeof request>[0],
+      )
+        .post('/graphql')
+        .send({
+          query: `
+            mutation Login($input: LoginInput!) {
+              login(input: $input) {
+                accessToken
+              }
+            }
+          `,
+          variables: {
+            input: {
+              username,
+              password: 'password123',
+            },
+          },
+        })
+        .expect(200);
+
+      const accessToken = (loginRes.body as GraphQLResponse<{
+        login: { accessToken: string };
+      }>).data?.login.accessToken;
+      expect(accessToken).toBeDefined();
+
+      await request(app.getHttpServer() as Parameters<typeof request>[0])
+        .post('/graphql')
+        .set('Authorization', `Bearer ${accessToken ?? ''}`)
+        .send({
+          query: `
+            query AuditLogs {
+              auditLogs {
+                totalCount
+              }
+            }
+          `,
+        })
+        .expect(200)
+        .expect((res: request.Response) => {
+          const body = res.body as GraphQLResponse<{ auditLogs: null }>;
+          expect(body.errors).toBeDefined();
+          expect(body.errors?.[0].message).toContain('FORBIDDEN');
         });
     });
   });

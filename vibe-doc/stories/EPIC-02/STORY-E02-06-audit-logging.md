@@ -4,7 +4,7 @@
 - **Story ID**: STORY-E02-06
 - **Epic**: EPIC-02 — Multi-Tenant Admin & RBAC
 - **Priority**: Medium
-- **Status**: Todo
+- **Status**: In Progress
 - **Created**: 2026-05-24
 - **Related**: vibe-doc/epic-plan.md, vibe-doc/architecture.md
 
@@ -18,20 +18,20 @@ Audit trails become critical when multiple staff members edit shared records (le
 
 ### Functional Requirements
 - [ ] Every create, update, delete mutation automatically writes an `AuditLog` entry
-- [ ] Each entry records: `tenantId`, `actorId`, `actorEmail`, `action` (CREATE/UPDATE/DELETE), `resource`, `resourceId`, `diff` (JSON before/after for updates), `timestamp`, `ipAddress`
-- [ ] Login events (success and failure) are also logged
-- [ ] Admin can query audit logs with filters: `actorId`, `resource`, `action`, date range
-- [ ] Audit log entries are immutable — no update or delete mutations exposed
+- [x] Each entry records: `tenantId`, `actorId`, `actorEmail`, `action` (CREATE/UPDATE/DELETE), `resource`, `resourceId`, `diff` (JSON before/after for updates), `timestamp`, `ipAddress`
+- [x] Login events (success and failure) are also logged
+- [x] Admin can query audit logs with filters: `actorId`, `resource`, `action`, date range
+- [x] Audit log entries are immutable — no update or delete mutations exposed
 
 ### Non-Functional Requirements
-- [ ] Audit logging must not increase mutation response time by > 10ms — write to queue, persist asynchronously
+- [x] Audit logging must not increase mutation response time by > 10ms — write to queue, persist asynchronously
 - [ ] Audit logs are retained for 90 days by default; older records are archived (not deleted)
-- [ ] `diff` field is stored as sanitized JSON — no passwords, tokens, or PII beyond email
+- [x] `diff` field is stored as sanitized JSON — no passwords, tokens, or PII beyond email
 
 ## Acceptance Criteria
 - [ ] Updating a lead's status creates an audit log entry with `{ before: { status: "NEW" }, after: { status: "CONTACTED" } }`
-- [ ] Admin can filter logs by `actorId` and see all actions that user performed in the last 30 days
-- [ ] A failed login attempt appears in audit logs with `action: LOGIN_FAILED`
+- [x] Admin can filter logs by `actorId` and see all actions that user performed in the last 30 days
+- [x] A failed login attempt appears in audit logs with `action: LOGIN_FAILED`
 - [ ] Attempting to mutate an audit log entry returns `FORBIDDEN`
 
 ## Technical Specifications
@@ -97,13 +97,35 @@ enum AuditAction {
 ## Testing Strategy
 
 ### Unit Tests
-- [ ] `AuditInterceptor` captures correct diff for an update mutation
-- [ ] Login failure in `AuthService` emits correct audit event
+- [x] `AuditInterceptor` captures correct diff for an update mutation
+- [x] Login failure in `AuthService` emits correct audit event
 
 ### Integration Tests
-- [ ] Updating a user profile creates an `AuditLog` row with correct `diff`
-- [ ] Audit log query with date filter returns only entries in range
+- [x] Updating a user profile creates an `AuditLog` row with correct `diff`
+- [x] Audit log query with date filter returns only entries in range
 - [ ] Mutation against `AuditLog` returns `FORBIDDEN`
+
+## Implementation Notes (2026-06-11)
+
+- Added Prisma `AuditLog` model and `AuditAction` enum with indexes and migration `20260611093000_story_e02_06_audit_logging`.
+- Added `AuditModule` with:
+  - `@Auditable(resource)` and `@AuditAction(resolver)` decorators
+  - `AuditInterceptor` (global) to capture auditable resolver executions
+  - BullMQ queue/worker for async persistence (`audit-log` queue)
+  - test-safe queue fallback in `NODE_ENV=test`
+  - `auditLogs(query)` admin-only GraphQL query
+- Added login success/failure audit emission directly in `AuthService.login`.
+- Added diff sanitizer that strips sensitive keys (`password`, `token`, `authorization`, etc.).
+- Added fail-safe handling so audit persistence does not break request flow if `AuditLog` table is missing in a not-yet-migrated environment.
+
+## Validation Notes
+
+- Backend build: `npm run build` passed.
+- Unit tests passed:
+  - `src/audit/audit.interceptor.spec.ts`
+  - `src/auth/auth.service.spec.ts`
+- E2E tests passed (after DB reset + migrate):
+  - `npx jest --config ./test/jest-e2e.json --runInBand --verbose test/auth.e2e-spec.ts`
 
 ## Dependencies
 
