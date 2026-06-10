@@ -6,6 +6,13 @@ input AcceptInvitationInput {
   token: String!
 }
 
+type ActivityEvent {
+  actor: String!
+  id: String!
+  timestamp: DateTime!
+  type: String!
+}
+
 type AuthPayload {
   accessToken: String!
   user: User!
@@ -41,6 +48,24 @@ input CreateTenantInput {
   name: String!
   planTier: String
   slug: String!
+}
+
+input DashboardDateRangeInput {
+  preset: DashboardDateRangePreset
+}
+
+enum DashboardDateRangePreset {
+  LAST_7_DAYS
+  LAST_30_DAYS
+  LAST_90_DAYS
+}
+
+type DashboardMetrics {
+  activeUsers: Int!
+  monthlyRevenue: Float!
+  publishedCourses: Int!
+  recentActivity: [ActivityEvent!]!
+  totalStudents: Int!
 }
 
 input DateFilter {
@@ -194,6 +219,7 @@ input PaginationArgs {
 }
 
 type Query {
+  dashboardMetrics(dateRange: DashboardDateRangeInput): DashboardMetrics!
   getMe(userId: String!): MePayload!
   getUser(userId: String!): User!
   members(query: MembersQueryInput): PaginatedMembers!
@@ -253,6 +279,10 @@ input StringFilter {
   equals: String
   in: [String!]
   startsWith: String
+}
+
+type Subscription {
+  dashboardMetricsUpdated(dateRange: DashboardDateRangeInput): DashboardMetrics!
 }
 
 type Tenant {

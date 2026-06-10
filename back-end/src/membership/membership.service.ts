@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   Logger,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma, RoleName, UserRole } from '@prisma/client';
@@ -31,6 +32,7 @@ import {
 } from '../shared/pagination/filter.types';
 import { SortDirection } from '../shared/pagination/pagination.args';
 import { paginate } from '../shared/pagination/paginate';
+import { DashboardService } from '../dashboard/dashboard.service';
 
 interface InvitationTokenPayload extends JwtPayload {
   sub: string;
@@ -80,6 +82,7 @@ export class MembershipService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly permissionService: PermissionService,
+    @Optional() private readonly dashboardService?: DashboardService,
   ) {}
 
   private getJwtSecret(): string {
@@ -325,6 +328,11 @@ export class MembershipService {
     await this.permissionService.invalidateUserPermissions(
       invitation.tenantId,
       context.userId,
+    );
+
+    await this.dashboardService?.recordUserJoined(
+      invitation.tenantId,
+      invitation.email,
     );
 
     return true;

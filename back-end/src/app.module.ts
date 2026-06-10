@@ -15,6 +15,7 @@ import { MetricsModule } from './metrics/metrics.module';
 import { TenantModule } from './tenant/tenant.module';
 import { RbacModule } from './rbac/rbac.module';
 import { MembershipModule } from './membership/membership.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { formatGraphQLError } from './shared/errors/error-format.plugin';
 import { UserError } from './shared/errors/user-error.type';
 
@@ -26,14 +27,50 @@ import { UserError } from './shared/errors/user-error.type';
       driver: ApolloDriver,
       autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
       sortSchema: true,
+      subscriptions: {
+        'graphql-ws': {
+          connectionInitWaitTimeout: 5_000,
+        },
+      },
       buildSchemaOptions: {
         orphanedTypes: [UserError],
       },
       formatError: formatGraphQLError,
-      context: ({ req, res }: { req: Request; res: Response }) => ({
-        req,
-        res,
-      }),
+      context: (context: {
+        req?: Request;
+        res?: Response;
+        extra?: {
+          request?: Request;
+        };
+        connectionParams?: Record<string, unknown>;
+      }) => {
+        if (context.req) {
+          return {
+            req: context.req,
+            res: context.res,
+          };
+        }
+
+        const authorization =
+          typeof context.connectionParams?.authorization === 'string'
+            ? context.connectionParams.authorization
+            : typeof context.connectionParams?.Authorization === 'string'
+              ? context.connectionParams.Authorization
+              : '';
+
+        const request =
+          context.extra?.request ??
+          ({ headers: { authorization } } as unknown as Request);
+
+        if (!request.headers.authorization && authorization) {
+          request.headers.authorization = authorization;
+        }
+
+        return {
+          req: request,
+          res: context.res,
+        };
+      },
     }),
     PrismaModule,
     RedisModule,
@@ -43,6 +80,7 @@ import { UserError } from './shared/errors/user-error.type';
     MetricsModule,
     RbacModule,
     MembershipModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -5,15 +5,19 @@ import {
   ApolloLink,
   Observable,
   from,
+  split,
 } from '@apollo/client/core';
 import { ApolloProvider } from '@apollo/client/react';
-import { useMutation, useQuery } from '@apollo/client/react';
+import { useMutation, useQuery, useSubscription } from '@apollo/client/react';
 import { ErrorLink } from '@apollo/client/link/error';
 import { CombinedGraphQLErrors } from '@apollo/client/errors';
+import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
+import { getMainDefinition } from '@apollo/client/utilities';
 import { print } from 'graphql/language/printer';
+import { createClient } from 'graphql-ws';
 import { REFRESH_TOKEN } from './queries';
 
-export { ApolloProvider, useMutation, useQuery };
+export { ApolloProvider, useMutation, useQuery, useSubscription };
 
 const graphqlEndpoint =
   import.meta.env.VITE_GRAPHQL_ENDPOINT || 'http://localhost:3500/graphql';
@@ -22,6 +26,36 @@ const httpLink = createHttpLink({
   uri: graphqlEndpoint,
   credentials: 'include',
 });
+
+const wsEndpoint = graphqlEndpoint.replace(/^http/, 'ws');
+const hasWebSocketRuntime =
+  typeof window !== 'undefined' && typeof window.WebSocket !== 'undefined';
+
+const wsLink = hasWebSocketRuntime
+  ? new GraphQLWsLink(
+      createClient({
+        url: wsEndpoint,
+        connectionParams: () => {
+          const token = localStorage.getItem('token');
+          return token ? { authorization: `Bearer ${token}` } : {};
+        },
+      }),
+    )
+  : null;
+
+const splitLink = wsLink
+  ? split(
+      ({ query }) => {
+        const definition = getMainDefinition(query);
+        return (
+          definition.kind === 'OperationDefinition' &&
+          definition.operation === 'subscription'
+        );
+      },
+      wsLink,
+      httpLink,
+    )
+  : httpLink;
 
 async function requestNewAccessToken(): Promise<string | null> {
   const response = await fetch(graphqlEndpoint, {
@@ -115,6 +149,6 @@ const errorLink = new ErrorLink(({ error, operation, forward }) => {
 });
 
 export const client = new ApolloClient({
-  link: from([errorLink, authMiddleware, httpLink]),
+  link: from([errorLink, authMiddleware, splitLink]),
   cache: new InMemoryCache(),
 });

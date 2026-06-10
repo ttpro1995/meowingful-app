@@ -209,3 +209,37 @@ export const DECLINE_INVITATION = gql`
     declineInvitation(input: $input)
   }
 `;
+
+export const DASHBOARD_METRICS = gql`
+  query DashboardMetrics($dateRange: DashboardDateRangeInput) {
+    dashboardMetrics(dateRange: $dateRange) {
+      activeUsers
+      totalStudents
+      publishedCourses
+      monthlyRevenue
+      recentActivity {
+        id
+        type
+        actor
+        timestamp
+      }
+    }
+  }
+`;
+
+export const DASHBOARD_METRICS_UPDATED = gql`
+  subscription DashboardMetricsUpdated($dateRange: DashboardDateRangeInput) {
+    dashboardMetricsUpdated(dateRange: $dateRange) {
+      activeUsers
+      totalStudents
+      publishedCourses
+      monthlyRevenue
+      recentActivity {
+        id
+        type
+        actor
+        timestamp
+      }
+    }
+  }
+`;
