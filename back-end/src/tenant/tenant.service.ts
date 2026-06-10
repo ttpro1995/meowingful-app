@@ -262,6 +262,12 @@ export class TenantService {
         },
       });
 
+      await this.prisma.tenantConfig.create({
+        data: {
+          tenantId: tenant.id,
+        },
+      });
+
       await this.seedRolesForTenant(tenant.id);
       return tenant;
     } catch (error: unknown) {
@@ -352,12 +358,29 @@ export class TenantService {
 
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
+      include: {
+        config: {
+          select: {
+            logoUrl: true,
+          },
+        },
+      },
     });
 
     if (!tenant) {
       throw new UnauthorizedException('UNAUTHORIZED');
     }
 
-    return tenant;
+    return {
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+      planTier: tenant.planTier,
+      contactEmail: tenant.contactEmail,
+      logoUrl: tenant.config?.logoUrl ?? undefined,
+      isActive: tenant.isActive,
+      createdAt: tenant.createdAt,
+      updatedAt: tenant.updatedAt,
+    };
   }
 }

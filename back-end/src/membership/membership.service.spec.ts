@@ -36,6 +36,7 @@ describe('MembershipService', () => {
       createMany: jest.fn(),
       deleteMany: jest.fn(),
       findMany: jest.fn(),
+      findFirst: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -47,6 +48,19 @@ describe('MembershipService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockPrismaService.$transaction.mockImplementation(
+      async (
+        arg:
+          | ((tx: typeof mockPrismaService) => Promise<unknown>)
+          | readonly unknown[],
+      ) => {
+        if (typeof arg === 'function') {
+          return arg(mockPrismaService);
+        }
+
+        return arg;
+      },
+    );
     service = new MembershipService(
       mockPrismaService as unknown as PrismaService,
       mockPermissionService as unknown as PermissionService,
@@ -238,5 +252,240 @@ describe('MembershipService', () => {
         take: 100,
       }),
     );
+  });
+
+  it('throws when inviteMember role does not belong to tenant', async () => {
+    (getTenantContext as jest.Mock).mockReturnValue({
+      tenantId: 'tenant-1',
+      userId: 'admin-1',
+      role: UserRole.TENANT_ADMIN,
+      isSuperAdmin: false,
+    });
+    mockPrismaService.role.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.inviteMember({
+        email: 'member@example.com',
+        roleId: 'missing-role',
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('marks invitation as declined for valid invitation token', async () => {
+    (getTenantContext as jest.Mock).mockReturnValue({
+      tenantId: 'tenant-1',
+      userId: 'user-1',
+      role: UserRole.USER,
+      isSuperAdmin: false,
+    });
+
+    const token = jwt.sign(
+      {
+        sub: 'inv-1',
+        type: 'invitation',
+        tenantId: 'tenant-1',
+        roleId: 'role-1',
+        email: 'user@example.com',
+      },
+      'dev-secret-key-change-in-production',
+      { expiresIn: '72h' },
+    );
+
+    mockPrismaService.invitation.findUnique.mockResolvedValue({
+      id: 'inv-1',
+      tenantId: 'tenant-1',
+      roleId: 'role-1',
+      email: 'user@example.com',
+      expiresAt: new Date(Date.now() + 60_000),
+      acceptedAt: null,
+      declinedAt: null,
+    });
+    mockPrismaService.invitation.update.mockResolvedValue({ id: 'inv-1' });
+
+    await expect(service.declineInvitation({ token })).resolves.toBe(true);
+    expect(mockPrismaService.invitation.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'inv-1' },
+      }),
+    );
+  });
+
+  it('updates member roles and returns refreshed tenant member profile', async () => {
+    (getTenantContext as jest.Mock).mockReturnValue({
+      tenantId: 'tenant-1',
+      userId: 'admin-1',
+      role: UserRole.TENANT_ADMIN,
+      isSuperAdmin: false,
+    });
+
+    mockPrismaService.role.count.mockResolvedValue(2);
+    mockPrismaService.userTenantRole.findFirst.mockResolvedValue({
+      userId: 'member-1',
+    });
+    mockPrismaService.userTenantRole.deleteMany.mockResolvedValue({ count: 2 });
+    mockPrismaService.userTenantRole.createMany.mockResolvedValue({ count: 2 });
+    mockPermissionService.invalidateUserPermissions.mockResolvedValue(
+      undefined,
+    );
+    mockPrismaService.user.findFirst.mockResolvedValue({
+      id: 'member-1',
+      tenantId: 'tenant-1',
+      username: 'member1',
+      name: 'Member One',
+      bio: null,
+      email: 'member1@example.com',
+      deletedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      userRoles: [
+        {
+          roleId: 'role-1',
+          role: { name: 'TENANT_ADMIN' },
+        },
+        {
+          roleId: 'role-2',
+          role: { name: 'STAFF' },
+        },
+      ],
+    });
+
+    const result = await service.updateMemberRoles({
+      userId: 'member-1',
+      roleIds: ['role-1', 'role-2', 'role-2'],
+    });
+
+    expect(mockPrismaService.role.count).toHaveBeenCalledWith({
+      where: {
+        tenantId: 'tenant-1',
+        id: {
+          in: ['role-1', 'role-2'],
+        },
+      },
+    });
+    expect(mockPrismaService.userTenantRole.deleteMany).toHaveBeenCalledWith({
+      where: {
+        tenantId: 'tenant-1',
+        userId: 'member-1',
+      },
+    });
+    expect(mockPrismaService.userTenantRole.createMany).toHaveBeenCalledWith({
+      data: [
+        {
+          tenantId: 'tenant-1',
+          userId: 'member-1',
+          roleId: 'role-1',
+        },
+        {
+          tenantId: 'tenant-1',
+          userId: 'member-1',
+          roleId: 'role-2',
+        },
+      ],
+    });
+    expect(
+      mockPermissionService.invalidateUserPermissions,
+    ).toHaveBeenCalledWith('tenant-1', 'member-1');
+    expect(result.id).toBe('member-1');
+    expect(result.roles).toEqual([
+      {
+        roleId: 'role-1',
+        roleName: 'TENANT_ADMIN',
+      },
+      {
+        roleId: 'role-2',
+        roleName: 'STAFF',
+      },
+    ]);
+  });
+
+  it('throws when one or more requested roles are invalid for tenant', async () => {
+    (getTenantContext as jest.Mock).mockReturnValue({
+      tenantId: 'tenant-1',
+      userId: 'admin-1',
+      role: UserRole.TENANT_ADMIN,
+      isSuperAdmin: false,
+    });
+
+    mockPrismaService.role.count.mockResolvedValue(1);
+
+    await expect(
+      service.updateMemberRoles({
+        userId: 'member-1',
+        roleIds: ['role-1', 'role-2'],
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('aggregates duplicate tenant rows into unique role names in myTenants payload', async () => {
+    (getTenantContext as jest.Mock).mockReturnValue({
+      tenantId: 'tenant-1',
+      userId: 'user-1',
+      role: UserRole.USER,
+      isSuperAdmin: false,
+    });
+
+    mockPrismaService.userTenantRole.findMany.mockResolvedValue([
+      {
+        tenantId: 'tenant-1',
+        tenant: {
+          id: 'tenant-1',
+          name: 'Tenant One',
+          slug: 'tenant-one',
+        },
+        role: {
+          name: 'TENANT_ADMIN',
+        },
+      },
+      {
+        tenantId: 'tenant-1',
+        tenant: {
+          id: 'tenant-1',
+          name: 'Tenant One',
+          slug: 'tenant-one',
+        },
+        role: {
+          name: 'STAFF',
+        },
+      },
+      {
+        tenantId: 'tenant-1',
+        tenant: {
+          id: 'tenant-1',
+          name: 'Tenant One',
+          slug: 'tenant-one',
+        },
+        role: {
+          name: 'STAFF',
+        },
+      },
+      {
+        tenantId: 'tenant-2',
+        tenant: {
+          id: 'tenant-2',
+          name: 'Tenant Two',
+          slug: 'tenant-two',
+        },
+        role: {
+          name: 'INSTRUCTOR',
+        },
+      },
+    ]);
+
+    const result = await service.myTenants();
+
+    expect(result.memberships).toEqual([
+      {
+        tenantId: 'tenant-1',
+        tenantName: 'Tenant One',
+        tenantSlug: 'tenant-one',
+        roleNames: ['TENANT_ADMIN', 'STAFF'],
+      },
+      {
+        tenantId: 'tenant-2',
+        tenantName: 'Tenant Two',
+        tenantSlug: 'tenant-two',
+        roleNames: ['INSTRUCTOR'],
+      },
+    ]);
   });
 });

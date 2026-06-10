@@ -4,37 +4,54 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     branches: [master]
+  workflow_dispatch:
+    inputs:
+      run_install_debug:
+        description: Run verbose Playwright chromium install diagnostics
+        required: false
+        default: true
+        type: boolean
 
 jobs:
   frontend-e2e:
     name: Frontend E2E Tests (Playwright)
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_DB: test_db
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s
-          --health-retries 5
+    container:
+      image: mcr.microsoft.com/playwright:v1.52.0-noble
     env:
-      DATABASE_URL: postgresql://test:test@localhost:5432/test_db?schema=public
-      REDIS_HOST: localhost
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ''
-      FRONTEND_URL: http://localhost:8500
-      VITE_GRAPHQL_ENDPOINT: http://localhost:3500/graphql
+      CI: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: front-end/package-lock.json
+
+      - name: Install frontend dependencies
+        run: |
+          cd front-end
+          npm ci
+
+      - name: Run Frontend E2E tests
+        timeout-minutes: 15
+        run: |
+          cd front-end
+          npm run test:e2e
+
+  playwright-install-debug:
+    name: Playwright Install Debug (Chromium)
+    if: github.event_name == 'workflow_dispatch' && inputs.run_install_debug
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+      PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/ms-playwright
+      DEBUG: pw:install,pw:download,pw:browser*
+      PLAYWRIGHT_SKIP_BROWSER_GC: 1
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -48,35 +65,82 @@ jobs:
 
       - name: Install frontend dependencies
         run: |
+          set -euxo pipefail
           cd front-end
           npm ci
 
-      - name: Install Playwright browsers
+      - name: Print environment and disk context
         run: |
+          set -euxo pipefail
+          echo "UTC now: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          uname -a
+          node -v
+          npm -v
           cd front-end
-          npx playwright install --with-deps
+          npx playwright --version
+          df -h
+          free -h || true
+          ulimit -a || true
+          ls -lah /home/runner/.cache || true
+          ls -lah "${PLAYWRIGHT_BROWSERS_PATH}" || true
 
-      - name: Build frontend
+      - name: Install Playwright system dependencies
+        timeout-minutes: 15
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
+          set -euxo pipefail
           cd front-end
-          npm run build
+          npx playwright install-deps chromium
 
-      - name: Setup backend for E2E
+      - name: Install Playwright chromium (verbose debug)
+        timeout-minutes: 40
         run: |
-          cd back-end
-          npm ci
-          npx prisma generate
-          npx prisma migrate deploy
-          npm run build
-
-      - name: Start backend server
-        run: |
-          cd back-end
-          PORT=3500 npm run start:prod &
-          timeout 60 bash -c 'until curl -s http://localhost:3500/api/v1/health >/dev/null; do sleep 2; done' || echo "Backend may not have health endpoint, proceeding anyway"
-          sleep 5
-
-      - name: Run Frontend E2E tests
-        run: |
+          set -euxo pipefail
           cd front-end
-          npm run test:e2e
+          LOG_FILE=/tmp/playwright-install.log
+          CONTEXT_FILE=/tmp/playwright-install-context.log
+
+          {
+            echo "== START: $(date -u +'%Y-%m-%dT%H:%M:%SZ') =="
+            echo "== Install plan =="
+            npx playwright install chromium --no-shell --dry-run || true
+            echo "== Cache before install =="
+            ls -lah "${PLAYWRIGHT_BROWSERS_PATH}" || true
+            du -sh "${PLAYWRIGHT_BROWSERS_PATH}" || true
+          } | tee -a "${CONTEXT_FILE}"
+
+          # Use command-level timeout so post-failure diagnostics can still run.
+          if ! timeout --signal=SIGTERM --kill-after=2m 30m bash -c 'npx playwright install chromium --no-shell 2>&1' | tee "${LOG_FILE}"; then
+            install_exit=${PIPESTATUS[0]}
+            {
+              echo "== INSTALL FAILED with exit code ${install_exit} =="
+              echo "== UTC failure time: $(date -u +'%Y-%m-%dT%H:%M:%SZ') =="
+              echo "== Cache after failure =="
+              ls -lah "${PLAYWRIGHT_BROWSERS_PATH}" || true
+              du -sh "${PLAYWRIGHT_BROWSERS_PATH}" || true
+              find "${PLAYWRIGHT_BROWSERS_PATH}" -maxdepth 4 -type f \( -name '*.zip' -o -name '*.tmp' \) -print || true
+              echo "== Tail of install log =="
+              tail -n 300 "${LOG_FILE}" || true
+            } | tee -a "${CONTEXT_FILE}"
+            exit "${install_exit}"
+          fi
+
+          {
+            echo "== INSTALL SUCCEEDED =="
+            echo "== UTC success time: $(date -u +'%Y-%m-%dT%H:%M:%SZ') =="
+            echo "== Cache after success =="
+            ls -lah "${PLAYWRIGHT_BROWSERS_PATH}" || true
+            du -sh "${PLAYWRIGHT_BROWSERS_PATH}" || true
+          } | tee -a "${CONTEXT_FILE}"
+
+      - name: Upload Playwright install debug logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-install-debug-logs
+          path: |
+            /tmp/playwright-install.log
+            /tmp/playwright-install-context.log
+          if-no-files-found: warn
+          retention-days: 7

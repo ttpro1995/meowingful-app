@@ -34,6 +34,9 @@ export class Tenant {
   @Field(() => String)
   contactEmail: string;
 
+  @Field(() => String, { nullable: true })
+  logoUrl?: string;
+
   @Field(() => Boolean)
   isActive: boolean;
 
