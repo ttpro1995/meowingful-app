@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   CHANGE_PASSWORD,
   GET_USER,
@@ -555,6 +555,13 @@ export default function Profile() {
             ? new Date(data.getUser.createdAt).toLocaleDateString()
             : ''}
         </div>
+        {canManageTenantConfig && (
+          <div className="button-group dashboard-entry-link-row">
+            <Link to="/admin/dashboard" className="btn-secondary">
+              Open Admin Dashboard
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="profile-section">
