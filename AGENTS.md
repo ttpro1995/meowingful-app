@@ -43,7 +43,7 @@ cd front-end && npm run dev
 
 ## Architecture & Stack
 
-- **Backend:** NestJS + GraphQL + Prisma + PostgreSQL + Redis
+- **Backend:** NestJS + GraphQL + Prisma + PostgreSQL + Redis + BullMQ
 - **Frontend:** React + TypeScript + Apollo Client + Vite
 - **DevOps:** Docker + Docker Compose
 
@@ -61,6 +61,16 @@ cd front-end && npm run dev
 - Transaction-based operations for data consistency
 - `@InputType()` for mutations, `@ObjectType()` for responses
 - UUID primary keys with `@default(uuid())`
+
+**Audit Logging (STORY-E02-06):**
+- Audit module lives in `back-end/src/audit/` (`audit.module|resolver|service|interceptor|types`).
+- Decorate auditable mutations with `@Auditable(resource)` and `@AuditAction(resolver)`.
+- Global `AuditInterceptor` captures decorated GraphQL mutations and enqueues events.
+- Async persistence uses BullMQ queue name `audit-log`; worker writes to `AuditLog` table.
+- Login success/failure events are emitted in `AuthService.login`.
+- Audit query API is `auditLogs(query)` and is admin-only (`TENANT_ADMIN` or `SUPER_ADMIN`).
+- Sensitive fields are stripped from audit diffs (`password`, `passwordHash`, `token`, `refreshToken`, `accessToken`, `authorization`, `cookie`).
+- Prisma schema includes `AuditLog` and `AuditAction`; migration: `20260611093000_story_e02_06_audit_logging`.
 
 **Testing:**
 - Unit tests: Co-located `.spec.ts` files with mocked PrismaService
@@ -122,6 +132,7 @@ npx prisma migrate deploy  # Apply migrations (non-interactive)
 2. Run `npx prisma generate && npx prisma migrate dev`
 3. Update GraphQL types and resolvers as needed
 4. Add/update tests for new schema
+5. If auth/e2e flows fail with `P2021` on `AuditLog`, run `npx prisma migrate deploy` (or local cleanup with `npx prisma migrate reset --force`)
 
 ### Deployment
 - Production: `docker-compose up --build` (runs migrations automatically)
