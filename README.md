@@ -10,6 +10,7 @@ A full-stack web application with user authentication and profile management.
 - **Prisma** - Next-generation ORM
 - **PostgreSQL** - Relational database
 - **Redis** - Caching and session storage
+- **BullMQ** - Async queue for background audit persistence
 - **bcryptjs** - Password hashing
 
 ### Frontend
@@ -130,6 +131,12 @@ docker-compose -f docker-compose.dev.yml up
 - Change password
 - Username is immutable after registration
 
+### Audit Logging
+- Append-only `AuditLog` records for key mutations and auth events
+- Login success and failure events are captured
+- Audit diff payloads are sanitized to remove sensitive fields
+- Admin-only `auditLogs(query)` endpoint with actor/resource/action/date filtering and pagination
+
 ## API Schema
 
 ### Mutations
@@ -191,6 +198,24 @@ query GetUser($userId: String!) {
     updatedAt
   }
 }
+
+# Admin audit log query
+query AuditLogs($query: AuditLogsQueryInput) {
+   auditLogs(query: $query) {
+      totalCount
+      data {
+         id
+         actorId
+         actorEmail
+         action
+         resource
+         resourceId
+         diff
+         ipAddress
+         createdAt
+      }
+   }
+}
 ```
 
 ## Database Schema
@@ -211,6 +236,19 @@ query GetUser($userId: String!) {
 - `salt` (String) - Password salt
 - `createdAt` (DateTime)
 - `updatedAt` (DateTime)
+
+### AuditLog Table
+- `id` (UUID) - Primary key
+- `tenantId` (String) - Tenant scope
+- `actorId` (String, optional) - Acting user
+- `actorEmail` (String, optional) - Actor identity hint
+- `action` (Enum) - CREATE/UPDATE/DELETE/LOGIN_SUCCESS/LOGIN_FAILED/PERMISSION_* 
+- `resource` (String) - Domain resource name
+- `resourceId` (String) - Resource identifier
+- `diff` (JSON, optional) - Sanitized before/after payload
+- `ipAddress` (String, optional) - Client IP metadata
+- `archivedAt` (DateTime, optional) - Archive marker for retention
+- `createdAt` (DateTime)
 
 ## Testing
 
