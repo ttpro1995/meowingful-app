@@ -144,4 +144,154 @@ describe('RbacResolver', () => {
       ForbiddenException,
     );
   });
+
+  describe('grantPermission', () => {
+    it('grants a permission to a role and returns true', async () => {
+      (getTenantContext as jest.Mock).mockReturnValue({
+        tenantId: 'tenant-1',
+        isSuperAdmin: true,
+      });
+
+      mockPrisma.role.findFirst.mockResolvedValue({
+        id: 'role-1',
+        tenantId: 'tenant-1',
+        name: RoleName.STAFF,
+      });
+      mockPrisma.permission.findUnique.mockResolvedValue({
+        id: 'perm-1',
+        code: 'lead:create',
+      });
+      mockPrisma.rolePermission.upsert.mockResolvedValue({});
+
+      const result = await resolver.grantPermission(
+        'tenant-1',
+        RoleName.STAFF,
+        'lead:create',
+      );
+
+      expect(result).toBe(true);
+      expect(mockPrisma.rolePermission.upsert).toHaveBeenCalled();
+      expect(
+        mockPermissionService.invalidateRolePermissions,
+      ).toHaveBeenCalledWith('tenant-1', RoleName.STAFF);
+    });
+
+    it('throws ForbiddenException when role is not found', async () => {
+      (getTenantContext as jest.Mock).mockReturnValue({
+        tenantId: 'tenant-1',
+        isSuperAdmin: true,
+      });
+
+      mockPrisma.role.findFirst.mockResolvedValue(null);
+      mockPrisma.permission.findUnique.mockResolvedValue({
+        id: 'perm-1',
+        code: 'lead:create',
+      });
+
+      await expect(
+        resolver.grantPermission('tenant-1', RoleName.STAFF, 'lead:create'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws ForbiddenException when permission is not found', async () => {
+      (getTenantContext as jest.Mock).mockReturnValue({
+        tenantId: 'tenant-1',
+        isSuperAdmin: true,
+      });
+
+      mockPrisma.role.findFirst.mockResolvedValue({
+        id: 'role-1',
+        tenantId: 'tenant-1',
+        name: RoleName.STAFF,
+      });
+      mockPrisma.permission.findUnique.mockResolvedValue(null);
+
+      await expect(
+        resolver.grantPermission('tenant-1', RoleName.STAFF, 'unknown:perm'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('revokePermission', () => {
+    it('revokes a permission from a role and returns true', async () => {
+      (getTenantContext as jest.Mock).mockReturnValue({
+        tenantId: 'tenant-1',
+        isSuperAdmin: true,
+      });
+
+      mockPrisma.role.findFirst.mockResolvedValue({
+        id: 'role-1',
+        tenantId: 'tenant-1',
+        name: RoleName.STAFF,
+      });
+      mockPrisma.permission.findUnique.mockResolvedValue({
+        id: 'perm-1',
+        code: 'lead:create',
+      });
+      mockPrisma.rolePermission.delete.mockResolvedValue({});
+
+      const result = await resolver.revokePermission(
+        'tenant-1',
+        RoleName.STAFF,
+        'lead:create',
+      );
+
+      expect(result).toBe(true);
+      expect(
+        mockPermissionService.invalidateRolePermissions,
+      ).toHaveBeenCalledWith('tenant-1', RoleName.STAFF);
+    });
+
+    it('throws ForbiddenException when role is not found', async () => {
+      (getTenantContext as jest.Mock).mockReturnValue({
+        tenantId: 'tenant-1',
+        isSuperAdmin: true,
+      });
+
+      mockPrisma.role.findFirst.mockResolvedValue(null);
+      mockPrisma.permission.findUnique.mockResolvedValue({
+        id: 'perm-1',
+        code: 'lead:create',
+      });
+
+      await expect(
+        resolver.revokePermission('tenant-1', RoleName.STAFF, 'lead:create'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('myPermissions', () => {
+    it('returns the current user permissions', async () => {
+      (getTenantContext as jest.Mock).mockReturnValue({
+        tenantId: 'tenant-1',
+        userId: 'user-1',
+        isSuperAdmin: false,
+      });
+
+      mockPermissionService.getUserPermissions.mockResolvedValue([
+        'lead:create',
+        'lead:delete',
+      ]);
+
+      const result = await resolver.myPermissions();
+
+      expect(result).toEqual(['lead:create', 'lead:delete']);
+      expect(mockPermissionService.getUserPermissions).toHaveBeenCalledWith(
+        'tenant-1',
+        'user-1',
+      );
+    });
+
+    it('throws ForbiddenException when no tenant context', async () => {
+      (getTenantContext as jest.Mock).mockReturnValue({
+        tenantId: null,
+        userId: null,
+        isSuperAdmin: false,
+      });
+
+      await expect(resolver.myPermissions()).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+  });
 });

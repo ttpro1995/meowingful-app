@@ -49,10 +49,47 @@ describe('TenantGuard', () => {
     } as ExecutionContext;
   }
 
+  function mockHttpContext(authorization?: string): ExecutionContext {
+    const req = {
+      headers: authorization ? { authorization } : {},
+    };
+
+    return {
+      getType: () => 'http',
+      switchToHttp: () => ({
+        getRequest: () => req,
+      }),
+      getHandler: () => jest.fn(),
+      getClass: () => class TestController {},
+    } as unknown as ExecutionContext;
+  }
+
   it('allows public register mutation without token', async () => {
     const context = mockGraphqlContext({
       parentTypeName: 'Mutation',
       fieldName: 'register',
+    });
+
+    const result = await guard.canActivate(context);
+
+    expect(result).toBe(true);
+  });
+
+  it('allows public login mutation without token', async () => {
+    const context = mockGraphqlContext({
+      parentTypeName: 'Mutation',
+      fieldName: 'login',
+    });
+
+    const result = await guard.canActivate(context);
+
+    expect(result).toBe(true);
+  });
+
+  it('allows refreshToken mutation without token (uses cookie)', async () => {
+    const context = mockGraphqlContext({
+      parentTypeName: 'Mutation',
+      fieldName: 'refreshToken',
     });
 
     const result = await guard.canActivate(context);
@@ -123,5 +160,67 @@ describe('TenantGuard', () => {
     await expect(guard.canActivate(context)).rejects.toThrow(
       UnauthorizedException,
     );
+  });
+
+  it('rejects expired access token', async () => {
+    const expiredToken = jwt.sign(
+      {
+        sub: 'user-1',
+        tenantId: 'tenant-1',
+        role: UserRole.USER,
+      },
+      'dev-secret-key-change-in-production',
+      { expiresIn: -10 },
+    );
+
+    const context = mockGraphqlContext({
+      parentTypeName: 'Query',
+      fieldName: 'users',
+      authorization: `Bearer ${expiredToken}`,
+    });
+
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('rejects malformed authorization header (no Bearer prefix)', async () => {
+    const context = mockGraphqlContext({
+      parentTypeName: 'Query',
+      fieldName: 'users',
+      authorization: 'some-token-without-bearer',
+    });
+
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('allows HTTP request with valid bearer token', async () => {
+    const accessToken = jwt.sign(
+      {
+        sub: 'user-1',
+        tenantId: 'tenant-1',
+        role: UserRole.SUPER_ADMIN,
+      },
+      'dev-secret-key-change-in-production',
+      { expiresIn: 900 },
+    );
+
+    const context = mockHttpContext(`Bearer ${accessToken}`);
+
+    const result = await guard.canActivate(context);
+
+    expect(result).toBe(true);
+  });
+
+  it('allows HTTP request without authorization header (guard passes through to downstream auth)', async () => {
+    // HTTP context is passed through by TenantGuard (returns true)
+    // Authentication is handled by JwtAuthGuard at the HTTP level
+    const context = mockHttpContext();
+
+    const result = await guard.canActivate(context);
+
+    expect(result).toBe(true);
   });
 });

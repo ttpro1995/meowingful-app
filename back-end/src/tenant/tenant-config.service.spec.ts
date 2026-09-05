@@ -1,4 +1,8 @@
-import { UnauthorizedException } from '@nestjs/common';
+import {
+  UnauthorizedException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { FileStorageService } from '../file-storage/file-storage.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -17,15 +21,20 @@ describe('TenantConfigService', () => {
 
   const now = new Date('2026-05-28T00:00:00.000Z');
 
-  const tenantConfigUpsert = jest.fn();
-  const tenantConfigUpdate = jest.fn();
-  const tenantFindUnique = jest.fn();
-  const cacheGet = jest.fn();
-  const cacheSet = jest.fn();
-  const cacheDel = jest.fn();
-  const getUserPermissions = jest.fn();
-  const uploadTenantLogo = jest.fn();
-  const resolveLocalLogoPath = jest.fn();
+  type TenantConfigUpdateFn = (args: {
+    where: { tenantId: string };
+    data: { features: Record<string, boolean> };
+  }) => Promise<unknown>;
+
+  const tenantConfigUpsert = jest.fn<() => Promise<unknown>>();
+  const tenantConfigUpdate = jest.fn<TenantConfigUpdateFn>();
+  const tenantFindUnique = jest.fn<() => Promise<unknown>>();
+  const cacheGet = jest.fn<() => Promise<unknown>>();
+  const cacheSet = jest.fn<() => Promise<void>>();
+  const cacheDel = jest.fn<() => Promise<void>>();
+  const getUserPermissions = jest.fn<() => Promise<unknown>>();
+  const uploadTenantLogo = jest.fn<() => Promise<string>>();
+  const resolveLocalLogoPath = jest.fn<() => string>();
 
   const baseConfigRecord = {
     id: 'config-1',
@@ -99,7 +108,27 @@ describe('TenantConfigService', () => {
     expect(tenantConfigUpsert).not.toHaveBeenCalled();
   });
 
-  it('updates tenant config and refreshes cache for tenant manager', async () => {
+  it('falls through to DB when cache misses and caches the result', async () => {
+    cacheGet.mockResolvedValue(null);
+    tenantConfigUpsert.mockResolvedValue({
+      ...baseConfigRecord,
+      features: {
+        crm: true,
+        elearning: false,
+        call_center: false,
+        live_classes: false,
+        marketplace: false,
+      },
+    });
+
+    const result = await service.getTenantConfigByTenantId('tenant-1');
+
+    expect(result.id).toBe('config-1');
+    expect(cacheSet).toHaveBeenCalled();
+    expect(tenantConfigUpsert).toHaveBeenCalled();
+  });
+
+  it('invalidates and refreshes cache on updateTenantConfig', async () => {
     (getTenantContext as jest.Mock).mockReturnValue({
       tenantId: 'tenant-1',
       userId: 'user-1',
@@ -120,6 +149,20 @@ describe('TenantConfigService', () => {
     expect(cacheDel).toHaveBeenCalledWith('tenant_config:tenant-1');
     expect(cacheSet).toHaveBeenCalled();
     expect(getUserPermissions).toHaveBeenCalledWith('tenant-1', 'user-1');
+  });
+
+  it('throws ForbiddenException when caller lacks tenant:manage permission', async () => {
+    (getTenantContext as jest.Mock).mockReturnValue({
+      tenantId: 'tenant-1',
+      userId: 'user-1',
+      role: UserRole.USER,
+      isSuperAdmin: false,
+    });
+    getUserPermissions.mockResolvedValue([]);
+
+    await expect(
+      service.updateTenantConfig({ primaryColor: '#FF0000' }),
+    ).rejects.toThrow(ForbiddenException);
   });
 
   it('rejects feature toggle when caller is not super-admin', async () => {
@@ -178,6 +221,59 @@ describe('TenantConfigService', () => {
     expect(cacheDel).toHaveBeenCalledWith('tenant_config:tenant-1');
   });
 
+  it('throws BadRequestException when target tenant not found for setFeatureFlag', async () => {
+    (getTenantContext as jest.Mock).mockReturnValue({
+      tenantId: 'tenant-super',
+      userId: 'user-super',
+      role: UserRole.SUPER_ADMIN,
+      isSuperAdmin: true,
+    });
+
+    tenantFindUnique.mockResolvedValue(null);
+
+    await expect(
+      service.setFeatureFlag('nonexistent', TenantFeature.CRM, true),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('updates non-CRM feature flag (elearning)', async () => {
+    (getTenantContext as jest.Mock).mockReturnValue({
+      tenantId: 'tenant-super',
+      userId: 'user-super',
+      role: UserRole.SUPER_ADMIN,
+      isSuperAdmin: true,
+    });
+
+    tenantFindUnique.mockResolvedValue({ id: 'tenant-1' });
+    cacheGet.mockResolvedValue(null);
+    tenantConfigUpsert.mockResolvedValue(baseConfigRecord);
+    tenantConfigUpdate.mockResolvedValue({
+      ...baseConfigRecord,
+      features: {
+        ...baseConfigRecord.features,
+        elearning: true,
+      },
+    });
+
+    const result = await service.setFeatureFlag(
+      'tenant-1',
+      TenantFeature.ELEARNING,
+      true,
+    );
+
+    expect((result.features as Record<string, boolean>).elearning).toBe(true);
+    expect(tenantConfigUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId: 'tenant-1' },
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        data: expect.objectContaining({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          features: expect.objectContaining({ elearning: true }),
+        }),
+      }),
+    );
+  });
+
   it('stores uploaded logo URL and refreshes cache', async () => {
     uploadTenantLogo.mockResolvedValue('https://cdn.example.com/logo.png');
     tenantConfigUpsert.mockResolvedValue({
@@ -193,5 +289,55 @@ describe('TenantConfigService', () => {
     expect(result.logoUrl).toBe('https://cdn.example.com/logo.png');
     expect(cacheDel).toHaveBeenCalledWith('tenant_config:tenant-1');
     expect(cacheSet).toHaveBeenCalled();
+  });
+
+  it('rejects when unauthenticated (no tenant context)', async () => {
+    (getTenantContext as jest.Mock).mockReturnValue(null);
+
+    await expect(service.tenantConfig()).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('normalizes business hours from JSON and returns in config', async () => {
+    cacheGet.mockResolvedValue(null);
+    tenantConfigUpsert.mockResolvedValue({
+      ...baseConfigRecord,
+      businessHours: { mon: '09:00-18:00', fri: '09:00-17:00' },
+    });
+
+    const result = await service.getTenantConfigByTenantId('tenant-1');
+
+    expect(result.businessHours).toBeDefined();
+    expect((result.businessHours as Record<string, string>).mon).toBe(
+      '09:00-18:00',
+    );
+  });
+
+  it('invalidates stale cache when JSON parse fails', async () => {
+    cacheGet.mockResolvedValue('not-valid-json{');
+
+    await service.getTenantConfigByTenantId('tenant-1');
+
+    expect(cacheDel).toHaveBeenCalledWith('tenant_config:tenant-1');
+  });
+
+  it('allows super-admin to call updateTenantConfig without permission check', async () => {
+    (getTenantContext as jest.Mock).mockReturnValue({
+      tenantId: 'tenant-1',
+      userId: 'user-super',
+      role: UserRole.SUPER_ADMIN,
+      isSuperAdmin: true,
+    });
+
+    tenantConfigUpsert.mockResolvedValue({
+      ...baseConfigRecord,
+      primaryColor: '#ABCDEF',
+    });
+
+    const result = await service.updateTenantConfig({
+      primaryColor: '#ABCDEF',
+    });
+
+    expect(result.primaryColor).toBe('#ABCDEF');
+    expect(getUserPermissions).not.toHaveBeenCalled();
   });
 });
