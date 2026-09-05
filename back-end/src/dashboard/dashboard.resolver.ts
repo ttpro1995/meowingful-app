@@ -52,6 +52,7 @@ export class DashboardResolver {
       payload.dashboardMetricsUpdated.metrics,
   })
   dashboardMetricsUpdated(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     @Args('dateRange', { nullable: true }) _dateRange?: DashboardDateRangeInput,
   ): AsyncIterableIterator<unknown> {
     return this.dashboardService.asyncIterator();

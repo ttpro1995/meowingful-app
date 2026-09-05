@@ -38,21 +38,24 @@ export class AuditInterceptor implements NestInterceptor {
       return next.handle();
     }
 
-    const actionResolver = this.reflector.getAllAndOverride<AuditActionResolver>(
-      AUDIT_ACTION_RESOLVER_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const actionResolver =
+      this.reflector.getAllAndOverride<AuditActionResolver>(
+        AUDIT_ACTION_RESOLVER_KEY,
+        [context.getHandler(), context.getClass()],
+      );
 
     const gqlContext = GqlExecutionContext.create(context);
-    const request = gqlContext.getContext<{ req?: RequestWithTenantContext }>()?.req;
+    const request = gqlContext.getContext<{ req?: RequestWithTenantContext }>()
+      ?.req;
     const args = gqlContext.getArgs<Record<string, unknown>>();
 
     const tenantId = request?.tenantContext?.tenantId;
     const actorId = request?.tenantContext?.userId;
-    const actorEmail = typeof args?.input === 'object' && args?.input
-      ? (args.input as { email?: string; username?: string }).email ??
-        (args.input as { email?: string; username?: string }).username
-      : undefined;
+    const actorEmail =
+      typeof args?.input === 'object' && args?.input
+        ? ((args.input as { email?: string; username?: string }).email ??
+          (args.input as { email?: string; username?: string }).username)
+        : undefined;
     const ipAddress = getClientIpAddress(request);
 
     return next.handle().pipe(
@@ -87,7 +90,9 @@ export class AuditInterceptor implements NestInterceptor {
     );
   }
 
-  private extractRequestResourceId(args: Record<string, unknown>): string | undefined {
+  private extractRequestResourceId(
+    args: Record<string, unknown>,
+  ): string | undefined {
     const idCandidates = [args?.userId, args?.tenantId, args?.id];
     for (const candidate of idCandidates) {
       if (typeof candidate === 'string' && candidate) {
@@ -98,7 +103,10 @@ export class AuditInterceptor implements NestInterceptor {
     return undefined;
   }
 
-  private extractResourceId(args: Record<string, unknown>, result: unknown): string {
+  private extractResourceId(
+    args: Record<string, unknown>,
+    result: unknown,
+  ): string {
     const requestId = this.extractRequestResourceId(args);
     if (requestId) {
       return requestId;
@@ -108,7 +116,7 @@ export class AuditInterceptor implements NestInterceptor {
       typeof result === 'object' &&
       result !== null &&
       'id' in result &&
-      typeof (result as { id: unknown }).id === 'string'
+      typeof result.id === 'string'
     ) {
       return (result as { id: string }).id;
     }

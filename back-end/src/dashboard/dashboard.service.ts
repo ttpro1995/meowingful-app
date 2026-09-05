@@ -64,7 +64,9 @@ export class DashboardService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async dashboardMetrics(input?: DashboardDateRangeInput): Promise<DashboardMetrics> {
+  async dashboardMetrics(
+    input?: DashboardDateRangeInput,
+  ): Promise<DashboardMetrics> {
     const context = this.getAuthenticatedContext();
     await this.assertDashboardAccess(context);
 
@@ -157,9 +159,18 @@ export class DashboardService implements OnModuleInit, OnModuleDestroy {
 
   async refreshTenantMetrics(tenantId: string): Promise<void> {
     const [last7Days, last30Days, last90Days, payload] = await Promise.all([
-      this.computeMetricsSnapshot(tenantId, DashboardDateRangePreset.LAST_7_DAYS),
-      this.computeMetricsSnapshot(tenantId, DashboardDateRangePreset.LAST_30_DAYS),
-      this.computeMetricsSnapshot(tenantId, DashboardDateRangePreset.LAST_90_DAYS),
+      this.computeMetricsSnapshot(
+        tenantId,
+        DashboardDateRangePreset.LAST_7_DAYS,
+      ),
+      this.computeMetricsSnapshot(
+        tenantId,
+        DashboardDateRangePreset.LAST_30_DAYS,
+      ),
+      this.computeMetricsSnapshot(
+        tenantId,
+        DashboardDateRangePreset.LAST_90_DAYS,
+      ),
       this.getCachedTenantDashboard(tenantId),
     ]);
 
@@ -331,7 +342,9 @@ export class DashboardService implements OnModuleInit, OnModuleDestroy {
       publishedCourses: metrics.publishedCourses,
       monthlyRevenue: metrics.monthlyRevenue,
       recentActivity: payload.recentActivity
-        .filter((event) => new Date(event.timestamp).getTime() >= sinceDate.getTime())
+        .filter(
+          (event) => new Date(event.timestamp).getTime() >= sinceDate.getTime(),
+        )
         .slice(0, 10)
         .map((event) => ({
           ...event,
@@ -377,20 +390,21 @@ export class DashboardService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    const isDirectorOrAdminViaMembership = await this.prisma.userTenantRole.findFirst({
-      where: {
-        tenantId: context.tenantId,
-        userId: context.userId,
-        role: {
-          name: {
-            in: [RoleName.TENANT_ADMIN, RoleName.DIRECTOR],
+    const isDirectorOrAdminViaMembership =
+      await this.prisma.userTenantRole.findFirst({
+        where: {
+          tenantId: context.tenantId,
+          userId: context.userId,
+          role: {
+            name: {
+              in: [RoleName.TENANT_ADMIN, RoleName.DIRECTOR],
+            },
           },
         },
-      },
-      select: {
-        userId: true,
-      },
-    });
+        select: {
+          userId: true,
+        },
+      });
 
     if (isDirectorOrAdminViaMembership) {
       return;

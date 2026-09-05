@@ -25,7 +25,7 @@ export class TenantResolver {
       typeof result === 'object' &&
       result !== null &&
       'id' in result &&
-      typeof (result as { id: unknown }).id === 'string'
+      typeof result.id === 'string'
         ? (result as { id: string }).id
         : 'unknown',
     diff: createUpdateDiff(

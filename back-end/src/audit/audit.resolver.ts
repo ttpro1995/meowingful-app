@@ -22,7 +22,10 @@ export class AuditResolver {
       throw new ForbiddenException('FORBIDDEN');
     }
 
-    const result = await this.auditService.getAuditLogs(context.tenantId, query ?? {});
+    const result = await this.auditService.getAuditLogs(
+      context.tenantId,
+      query ?? {},
+    );
 
     return {
       data: result.data.map((entry) => ({

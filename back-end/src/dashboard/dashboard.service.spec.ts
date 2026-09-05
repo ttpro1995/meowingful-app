@@ -187,7 +187,11 @@ describe('DashboardService', () => {
 
     await service.recordUserJoined('tenant-1', 'new-user');
 
-    const payload = JSON.parse(cacheSet.mock.calls[0][1] as string) as {
+    const cacheArgs = cacheSet.mock.calls[0] as [string, string] | undefined;
+    if (!cacheArgs) {
+      throw new Error('cacheSet was not called');
+    }
+    const payload = JSON.parse(cacheArgs[1]) as {
       metrics: {
         LAST_7_DAYS: { activeUsers: number };
         LAST_30_DAYS: { activeUsers: number };

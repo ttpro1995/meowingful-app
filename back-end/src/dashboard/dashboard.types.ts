@@ -1,4 +1,11 @@
-import { Field, Float, InputType, Int, ObjectType, registerEnumType } from '@nestjs/graphql';
+import {
+  Field,
+  Float,
+  InputType,
+  Int,
+  ObjectType,
+  registerEnumType,
+} from '@nestjs/graphql';
 
 export enum DashboardDateRangePreset {
   LAST_7_DAYS = 'LAST_7_DAYS',
@@ -10,7 +17,8 @@ registerEnumType(DashboardDateRangePreset, {
   name: 'DashboardDateRangePreset',
 });
 
-export const DEFAULT_DASHBOARD_DATE_RANGE = DashboardDateRangePreset.LAST_30_DAYS;
+export const DEFAULT_DASHBOARD_DATE_RANGE =
+  DashboardDateRangePreset.LAST_30_DAYS;
 
 @InputType()
 export class DashboardDateRangeInput {

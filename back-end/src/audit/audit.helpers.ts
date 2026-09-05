@@ -45,7 +45,12 @@ function sanitizeUnknown(value: unknown): JsonSafe {
   }
 
   if (!isRecord(value)) {
-    return String(value);
+    try {
+      return JSON.stringify(value);
+    } catch {
+      // eslint-disable-next-line @typescript-eslint/no-base-to-string
+      return String(value);
+    }
   }
 
   const result: Record<string, JsonSafe> = {};
