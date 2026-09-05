@@ -1,167 +1,34 @@
-# AI Agent Instructions - Meowingful App
+<!-- bmad:context -->
+<!-- Verified 2026-09-04 against c4edc53. Managed by bmad-project-context; edits inside this block are replaced on refresh. Keep anything you want preserved outside the markers. -->
 
-Full-stack web application with user authentication and profile management. **Current implementation is MVP** - see [vibe-doc/spec.md](vibe-doc/spec.md) for full platform vision (multi-tenant CRM & E-Learning system).
+## meowingful-app
 
-Helpful documentation is stored in [vibe-doc](vibe-doc/) folder.
+Multi-tenant CRM & E-Learning platform: NestJS/GraphQL/Prisma/PostgreSQL/Redis/BullMQ backend, React/TypeScript/Apollo/Vite frontend, Docker Compose orchestration. Planning docs live in `vibe-doc/`; implementation work logs append to `work-log/`.
 
-## vibe-doc Documentation Index
+## Policy
 
-| Document | Description |
-|----------|-------------|
-| [spec.md](vibe-doc/spec.md) | Complete platform requirements - full technical specification for the multi-tenant CRM & E-Learning system |
-| [architecture.md](vibe-doc/architecture.md) | System architecture, technology decisions, and evolution strategy from MVP to enterprise scale |
-| [development-guide.md](vibe-doc/development-guide.md) | Practical developer guide with setup, workflows, coding patterns, and best practices |
-| [project-overview.md](vibe-doc/project-overview.md) | Business vision, roadmap (phases 1-4), market positioning, and strategic context |
-| [instruction.md](vibe-doc/instruction.md) | Story-driven development process - format, guidelines, and workflow for implementation stories |
-| [story-01-quick-mvp.md](vibe-doc/story-01-quick-mvp.md) | Completed MVP implementation story - reference example showing the user authentication/profile feature |
-| [README.md](vibe-doc/README.md) | Documentation index with navigation by role and quick project status summary |
+- Trunk-based development; merge short-lived branches to `master`.
+- Never commit secrets to code or config files; use environment variables and `.env` files excluded from version control.
+- Append a work-log entry to `work-log/` after implementation stories.
 
-See [README.md](README.md) for complete setup instructions and API documentation.
-See [architecture.md](architecture.md) for architecture of the application.
+## Where things are
 
-## Quick Start Commands
+- Backend modules: `src/{feature}/{feature}.{module|resolver|service|types}.ts`; cross-cutting concerns in `src/shared/`.
+- Frontend pages/context: `src/pages/`, `src/context/`; centralized GraphQL operations in `src/graphql/queries.ts`.
+- Generated artifacts — never hand-edit: `back-end/src/schema.gql`, `back-end/prisma/migrations/*`, `dist/`, `coverage/`, `node_modules/`.
+- Database schema: `back-end/prisma/schema.prisma`; migrations required after every schema change.
 
-**Development (Recommended):**
-```bash
-# Start all services with Docker
-docker-compose up --build
+## Running and verifying
 
-# Access points:
-# Frontend: http://localhost:8500  
-# GraphQL Playground: http://localhost:3500/graphql
-# Redis (with password): localhost:6379 (default password: redis-password)
-```
+- CI enforces zero lint warnings and coverage floors (backend 70%, frontend 65%); local `npm run lint` does not fail on warnings.
+- E2E tests require Postgres and Redis running; CI runs them against service containers, not Docker Compose.
+- After schema changes: `npx prisma generate && npx prisma migrate dev`; production uses `npx prisma migrate deploy`.
 
-**Local Development:**
-```bash
-# Backend (requires local PostgreSQL)
-cd back-end && npm run start:dev
+## Conventions that differ from defaults
 
-# Frontend  
-cd front-end && npm run dev
-```
+- Backend ESLint allows `any` (`no-explicit-any: off`); frontend strictly forbids unused locals and parameters.
+- Backend tests: `.spec.ts` in `src/`; frontend tests: `.test.tsx`.
+- `User` and `Auth` are separate tables; `Auth` holds credentials, related to `User` by 1:1 `userId`.
+- Audit mutations use `@Auditable(resource)` and `@AuditAction(resolver)`; global `AuditInterceptor` enqueues to BullMQ queue `audit-log`.
 
-## Architecture & Stack
-
-- **Backend:** NestJS + GraphQL + Prisma + PostgreSQL + Redis + BullMQ
-- **Frontend:** React + TypeScript + Apollo Client + Vite
-- **DevOps:** Docker + Docker Compose
-
-## Development Patterns
-
-### Backend (NestJS + GraphQL + Prisma)
-
-**Module Organization:**
-- Feature modules: `src/{feature}/{feature}.{module|resolver|service|types}.ts`
-- Global PrismaModule provides PrismaService everywhere
-- Code-first GraphQL with decorator-based schema generation
-
-**Key Conventions:**
-- Separate `User` (profile) and `Auth` (credentials) tables for security
-- Transaction-based operations for data consistency
-- `@InputType()` for mutations, `@ObjectType()` for responses
-- UUID primary keys with `@default(uuid())`
-
-**Audit Logging (STORY-E02-06):**
-- Audit module lives in `back-end/src/audit/` (`audit.module|resolver|service|interceptor|types`).
-- Decorate auditable mutations with `@Auditable(resource)` and `@AuditAction(resolver)`.
-- Global `AuditInterceptor` captures decorated GraphQL mutations and enqueues events.
-- Async persistence uses BullMQ queue name `audit-log`; worker writes to `AuditLog` table.
-- Login success/failure events are emitted in `AuthService.login`.
-- Audit query API is `auditLogs(query)` and is admin-only (`TENANT_ADMIN` or `SUPER_ADMIN`).
-- Sensitive fields are stripped from audit diffs (`password`, `passwordHash`, `token`, `refreshToken`, `accessToken`, `authorization`, `cookie`).
-- Prisma schema includes `AuditLog` and `AuditAction`; migration: `20260611093000_story_e02_06_audit_logging`.
-
-**Testing:**
-- Unit tests: Co-located `.spec.ts` files with mocked PrismaService
-- E2E tests: `/test/*.e2e-spec.ts` with real database cleanup
-- Run: `npm run test` (unit) or `npm run test:e2e`
-
-### Frontend (React + TypeScript + Apollo)
-
-**Component Organization:**
-- Pages: `/src/pages/` for route components
-- Context: `/src/context/` for global state (AuthContext)
-- GraphQL: `/src/graphql/` for queries and client setup
-
-**Key Patterns:**
-- AuthContext with localStorage persistence + useAuth hook
-- PrivateRoute wrapper for protected pages
-- Centralized GraphQL operations in `queries.ts`
-- MockedProvider + MemoryRouter for testing components
-
-**Testing:**
-- Vitest with @testing-library/react
-- Provider wrapper pattern for context-dependent components
-- Run: `npm run test` (watch) or `npm run test:run`
-
-### Database (Prisma + PostgreSQL)
-
-**Development Workflow:**
-```bash
-# After schema changes
-npx prisma generate    # Update client
-npx prisma migrate dev # Create and apply migration
-
-# Production deployment  
-npx prisma migrate deploy  # Apply migrations (non-interactive)
-```
-
-**Schema Location:** `back-end/prisma/schema.prisma`
-
-## Code Quality Tools
-
-- **ESLint:** Configured for TypeScript in both frontend/backend
-- **Prettier:** `.prettierrc` with consistent formatting rules  
-- **TypeScript:** Strict mode with modern ES2023 target
-
-**Quality Check Commands:**
-- Backend: `npm run lint` (ESLint), `npm run build` (TypeScript compilation)
-- Run both before committing
-
-## Common Tasks
-
-### Adding New Features
-1. Backend: Create module in `src/{feature}/` following auth module pattern
-2. Update Prisma schema if needed → generate → migrate
-3. Frontend: Add pages, update GraphQL queries, add routes
-4. Test both unit and integration levels
-
-### Database Changes
-1. Modify `prisma/schema.prisma`
-2. Run `npx prisma generate && npx prisma migrate dev`
-3. Update GraphQL types and resolvers as needed
-4. Add/update tests for new schema
-5. If auth/e2e flows fail with `P2021` on `AuditLog`, run `npx prisma migrate deploy` (or local cleanup with `npx prisma migrate reset --force`)
-
-### Deployment
-- Production: `docker-compose up --build` (runs migrations automatically)
-- Development: `docker-compose -f docker-compose.dev.yml up` (hot reload)
-
-## Environment Variables
-
-**Required:**
-- Backend: `DATABASE_URL` (PostgreSQL connection)
-- Backend: `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` (Redis connection)
-- Frontend: `VITE_GRAPHQL_ENDPOINT` (GraphQL API URL)
-
-See [README.md](README.md) for complete environment setup details.
-
-## Security Notes
-
-- Passwords: bcrypt hashed with salt storage in separate Auth table
-- Username immutable after registration (security constraint)
-- CORS configured for development ports (update for production)
-- Use HTTPS and proper JWT tokens in production
-
-## Project Structure
-
-See [README.md](README.md) for detailed directory structure. Key directories:
-- `back-end/src/` - NestJS application code
-- `front-end/src/` - React application code  
-- `back-end/prisma/` - Database schema and migrations
-- `back-end/test/` and `front-end/src/**/*.test.*` - Test files
-
-## Work-log 
-After work, make a new markdown file in `work-log` report what have been done. 
-In addition, if you are working on the story, make comment and mark into the stories what have been done. 
+<!-- /bmad:context -->
