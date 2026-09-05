@@ -1,7 +1,11 @@
 import { Global, Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AuditResolver } from './audit.resolver';
-import { AuditService, auditQueueProvider, auditWorkerProvider } from './audit.service';
+import {
+  AuditService,
+  auditQueueProvider,
+  auditWorkerProvider,
+} from './audit.service';
 import { AuditInterceptor } from './audit.interceptor';
 
 @Global()

@@ -13,16 +13,17 @@ Multi-tenant CRM & E-Learning platform: NestJS/GraphQL/Prisma/PostgreSQL/Redis/B
 
 ## Where things are
 
-- Backend modules: `src/{feature}/{feature}.{module|resolver|service|types}.ts`; cross-cutting concerns in `src/shared/`.
-- Frontend pages/context: `src/pages/`, `src/context/`; centralized GraphQL operations in `src/graphql/queries.ts`.
+- Backend modules: `back-end/src/{feature}/{feature}.{module|resolver|service|types}.ts`; cross-cutting concerns in `back-end/src/shared/`.
+- Frontend pages/context: `front-end/src/pages/`, `front-end/src/context/`; centralized GraphQL operations in `front-end/src/graphql/queries.ts`.
 - Generated artifacts — never hand-edit: `back-end/src/schema.gql`, `back-end/prisma/migrations/*`, `dist/`, `coverage/`, `node_modules/`.
 - Database schema: `back-end/prisma/schema.prisma`; migrations required after every schema change.
 
 ## Running and verifying
 
+- Run backend commands from `back-end/` and frontend commands from `front-end/`; each has its own `package.json`.
 - CI enforces zero lint warnings and coverage floors (backend 70%, frontend 65%); local `npm run lint` does not fail on warnings.
 - E2E tests require Postgres and Redis running; CI runs them against service containers, not Docker Compose.
-- After schema changes: `npx prisma generate && npx prisma migrate dev`; production uses `npx prisma migrate deploy`.
+- After schema changes: `cd back-end && npx prisma generate && npx prisma migrate dev`; production uses `cd back-end && npx prisma migrate deploy`.
 
 ## Conventions that differ from defaults
 

@@ -510,9 +510,11 @@ describe('AuthResolver (e2e)', () => {
         })
         .expect(200);
 
-      const accessToken = (loginRes.body as GraphQLResponse<{
-        login: { accessToken: string };
-      }>).data?.login.accessToken;
+      const accessToken = (
+        loginRes.body as GraphQLResponse<{
+          login: { accessToken: string };
+        }>
+      ).data?.login.accessToken;
       expect(accessToken).toBeDefined();
 
       const fromDate = new Date().toISOString();
@@ -653,9 +655,11 @@ describe('AuthResolver (e2e)', () => {
         })
         .expect(200);
 
-      const userId = (registerRes.body as GraphQLResponse<{
-        register: { user: { id: string } };
-      }>).data?.register.user.id;
+      const userId = (
+        registerRes.body as GraphQLResponse<{
+          register: { user: { id: string } };
+        }>
+      ).data?.register.user.id;
       expect(userId).toBeDefined();
 
       await prismaService.user.update({
@@ -703,9 +707,11 @@ describe('AuthResolver (e2e)', () => {
         })
         .expect(200);
 
-      const accessToken = (loginRes.body as GraphQLResponse<{
-        login: { accessToken: string };
-      }>).data?.login.accessToken;
+      const accessToken = (
+        loginRes.body as GraphQLResponse<{
+          login: { accessToken: string };
+        }>
+      ).data?.login.accessToken;
       expect(accessToken).toBeDefined();
 
       const auditRes = await request(
@@ -798,9 +804,11 @@ describe('AuthResolver (e2e)', () => {
         })
         .expect(200);
 
-      const accessToken = (loginRes.body as GraphQLResponse<{
-        login: { accessToken: string };
-      }>).data?.login.accessToken;
+      const accessToken = (
+        loginRes.body as GraphQLResponse<{
+          login: { accessToken: string };
+        }>
+      ).data?.login.accessToken;
       expect(accessToken).toBeDefined();
 
       await request(app.getHttpServer() as Parameters<typeof request>[0])

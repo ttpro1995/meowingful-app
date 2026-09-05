@@ -9,10 +9,7 @@ import {
 } from './rbac.types';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { getTenantContext } from '../tenant/tenant-context.storage';
-import {
-  AuditAction as PrismaAuditAction,
-  RoleName,
-} from '@prisma/client';
+import { AuditAction as PrismaAuditAction, RoleName } from '@prisma/client';
 import { EnumFilter, StringFilter } from '../shared/pagination/filter.types';
 import { SortDirection } from '../shared/pagination/pagination.args';
 import { paginate } from '../shared/pagination/paginate';

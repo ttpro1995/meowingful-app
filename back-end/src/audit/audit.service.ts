@@ -10,7 +10,11 @@ import { Job, Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { REDIS_CLIENT } from '../redis/redis.constants';
-import { DateFilter, EnumFilter, StringFilter } from '../shared/pagination/filter.types';
+import {
+  DateFilter,
+  EnumFilter,
+  StringFilter,
+} from '../shared/pagination/filter.types';
 import { SortDirection } from '../shared/pagination/pagination.args';
 import { paginate } from '../shared/pagination/paginate';
 import { runWithTenantContext } from '../tenant/tenant-context.storage';
@@ -41,7 +45,11 @@ interface AuditWorkerLike {
 export class AuditService implements OnModuleDestroy {
   private static readonly staticLogger = new Logger(AuditService.name);
   private readonly logger = new Logger(AuditService.name);
-  private readonly sortableFields = new Set(['createdAt', 'resource', 'action']);
+  private readonly sortableFields = new Set([
+    'createdAt',
+    'resource',
+    'action',
+  ]);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -200,7 +208,9 @@ export class AuditService implements OnModuleDestroy {
     return parsed;
   }
 
-  private toStringFilter(filter?: StringFilter): Prisma.StringFilter | undefined {
+  private toStringFilter(
+    filter?: StringFilter,
+  ): Prisma.StringFilter | undefined {
     if (!filter) {
       return undefined;
     }
@@ -296,7 +306,10 @@ export class AuditService implements OnModuleDestroy {
     };
   }
 
-  async getAuditLogs(tenantId: string, query: AuditLogsQueryInput = {}): Promise<{
+  async getAuditLogs(
+    tenantId: string,
+    query: AuditLogsQueryInput = {},
+  ): Promise<{
     data: Prisma.AuditLogGetPayload<object>[];
     totalCount: number;
     page: number;
@@ -322,7 +335,10 @@ export class AuditService implements OnModuleDestroy {
       [data, totalCount] = await this.prisma.$transaction([
         this.prisma.auditLog.findMany({
           where,
-          orderBy: this.toOrderBy(query.orderBy?.field, query.orderBy?.direction),
+          orderBy: this.toOrderBy(
+            query.orderBy?.field,
+            query.orderBy?.direction,
+          ),
           skip,
           take,
         }),
@@ -359,6 +375,7 @@ export const auditQueueProvider = {
         add: async (_name: string, data: AuditLogJobPayload) => {
           await AuditService.persistAuditLog(prisma, data);
         },
+        // eslint-disable-next-line @typescript-eslint/require-await
         close: async () => {
           return;
         },
@@ -375,6 +392,7 @@ export const auditWorkerProvider = {
   useFactory: (redis: Redis, prisma: PrismaService): AuditWorkerLike => {
     if (process.env.NODE_ENV === 'test') {
       return {
+        // eslint-disable-next-line @typescript-eslint/require-await
         close: async () => {
           return;
         },

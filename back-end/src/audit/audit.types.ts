@@ -7,12 +7,7 @@ import {
 } from '@nestjs/graphql';
 import { AuditAction } from '@prisma/client';
 import { Type } from 'class-transformer';
-import {
-  IsInt,
-  IsOptional,
-  IsString,
-  ValidateNested,
-} from 'class-validator';
+import { IsInt, IsOptional, IsString, ValidateNested } from 'class-validator';
 import {
   DateFilter,
   EnumFilter,

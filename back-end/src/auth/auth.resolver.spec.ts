@@ -104,9 +104,20 @@ describe('AuthResolver', () => {
 
       mockAuthService.login.mockResolvedValue(mockAuthPayload);
 
-      const result = await authResolver.login(loginInput, response as never);
+      const req = {
+        headers: {},
+        ip: '127.0.0.1',
+      };
 
-      expect(mockAuthService.login).toHaveBeenCalledWith(loginInput);
+      const result = await authResolver.login(
+        loginInput,
+        req as never,
+        response as never,
+      );
+
+      expect(mockAuthService.login).toHaveBeenCalledWith(loginInput, {
+        ipAddress: '127.0.0.1',
+      });
       expect(response.cookie).toHaveBeenCalled();
       expect(result).toEqual({
         accessToken: mockAuthPayload.accessToken,

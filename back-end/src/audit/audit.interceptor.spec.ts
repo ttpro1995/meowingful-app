@@ -3,7 +3,10 @@ import { Reflector } from '@nestjs/core';
 import { GqlExecutionContext } from '@nestjs/graphql';
 import { AuditAction } from '@prisma/client';
 import { lastValueFrom, of } from 'rxjs';
-import { AUDITABLE_RESOURCE_KEY, AUDIT_ACTION_RESOLVER_KEY } from './audit.constants';
+import {
+  AUDITABLE_RESOURCE_KEY,
+  AUDIT_ACTION_RESOLVER_KEY,
+} from './audit.constants';
 import { AuditInterceptor } from './audit.interceptor';
 import { AuditService } from './audit.service';
 
