@@ -39,17 +39,53 @@ A full-stack web application with user authentication and profile management.
    ```
 
 2. **Access the application:**
-    - Frontend: http://localhost:8500
-    - Backend GraphQL Playground: http://localhost:3500/graphql
-    - PostgreSQL: localhost:5432
-    - Redis: localhost:6379 (with password: redis-password)
+   - Frontend: http://localhost:8500
+   - Backend GraphQL Playground: http://localhost:3500/graphql
+   - PostgreSQL: localhost:5432
+   - Redis: localhost:6379 (password: redis-password, from .env)
+   - Prometheus: http://localhost:9090
+   - Grafana: http://localhost:3001 (admin/admin)
 
 3. **Stop services:**
    ```bash
    docker-compose down
    ```
 
-### Local Development
+4. **Rebuild services after code changes:**
+   ```bash
+   docker-compose up --build -d  # restart with new image
+   # or
+   docker-compose build           # rebuild only
+   docker-compose up -d           # start rebuilt services
+   ```
+
+5. **View logs:**
+   ```bash
+   docker-compose logs -f         # all services
+   docker-compose logs -f backend # backend only
+   docker-compose logs -f frontend # frontend only
+   ```
+
+### Development with Docker Compose
+
+For hot-reload development, use the development compose file which mounts source code for live reloading:
+
+```bash
+docker-compose -f docker-compose.dev.yml up
+```
+
+This uses `docker-compose.dev.yml` which:
+- Mounts `./back-end` source code into the container
+- Runs `npm run start:dev` with hot reload
+- Exposes the same ports as production compose
+
+#### Stop dev environment
+
+```bash
+docker-compose -f docker-compose.dev.yml down
+```
+
+### Local Development (without Docker)
 
 #### Backend Setup
 
@@ -65,9 +101,51 @@ A full-stack web application with user authentication and profile management.
 
 3. **Set up environment variables:**
    ```bash
-   # .env file (already configured)
-   DATABASE_URL="postgresql://postgres:postgres@localhost:5432/meowingful?schema=public"
+   # Copy .env file if needed
+   cp .env.example .env  # create from template
+   # Edit .env with your values
    ```
+
+4. **Generate Prisma client:**
+   ```bash
+   npx prisma generate
+   ```
+
+5. **Run database migrations:**
+   ```bash
+   npx prisma migrate dev --name init
+   ```
+
+6. **Start the backend:**
+   ```bash
+   npm run start:dev
+   ```
+
+#### Frontend Setup
+
+1. **Navigate to frontend directory:**
+   ```bash
+   cd front-end
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables:**
+   ```bash
+   # Create .env file
+   echo "VITE_GRAPHQL_ENDPOINT=http://localhost:3000/graphql" > .env
+   ```
+
+4. **Start the frontend:**
+   ```bash
+   npm run dev
+   ```
+
+5. **Access the application:**
+   - Frontend: http://localhost:5173
 
 4. **Generate Prisma client:**
    ```bash
