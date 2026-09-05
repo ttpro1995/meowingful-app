@@ -1,5 +1,5 @@
 <!-- bmad:context -->
-<!-- Verified 2026-09-04 against c4edc53. Managed by bmad-project-context; edits inside this block are replaced on refresh. Keep anything you want preserved outside the markers. -->
+<!-- Verified 2026-09-05 against 02221aa. Managed by bmad-project-context; edits inside this block are replaced on refresh. Keep anything you want preserved outside the markers. -->
 
 ## meowingful-app
 
@@ -8,7 +8,7 @@ Multi-tenant CRM & E-Learning platform: NestJS/GraphQL/Prisma/PostgreSQL/Redis/B
 ## Policy
 
 - Trunk-based development; merge short-lived branches to `master`.
-- Never commit secrets to code or config files; use environment variables and `.env` files excluded from version control.
+- Never commit secrets to code or config files; use environment variables.
 - Append a work-log entry to `work-log/` after implementation stories.
 
 ## Where things are
@@ -28,7 +28,7 @@ Multi-tenant CRM & E-Learning platform: NestJS/GraphQL/Prisma/PostgreSQL/Redis/B
 ## Conventions that differ from defaults
 
 - Backend ESLint allows `any` (`no-explicit-any: off`); frontend strictly forbids unused locals and parameters.
-- Backend tests: `.spec.ts` in `src/`; frontend tests: `.test.tsx`.
+- Backend tests: `.spec.ts` in `src/`; frontend tests: `.spec.tsx`.
 - `User` and `Auth` are separate tables; `Auth` holds credentials, related to `User` by 1:1 `userId`.
 - Audit mutations use `@Auditable(resource)` and `@AuditAction(resolver)`; global `AuditInterceptor` enqueues to BullMQ queue `audit-log`.
 
