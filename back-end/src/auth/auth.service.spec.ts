@@ -267,6 +267,42 @@ describe('AuthService', () => {
   });
 
   describe('refreshSession', () => {
+    it('throws UnauthorizedException for access token passed as refresh token', async () => {
+      const loginInput = {
+        username: 'testuser',
+        password: 'password123',
+      };
+
+      const hashedPassword = await bcrypt.hash(loginInput.password, 10);
+
+      mockPrismaService.auth.findUnique.mockResolvedValue({
+        id: 'auth-uuid',
+        userId: 'user-uuid',
+        tenantId: defaultTenant.id,
+        username: loginInput.username,
+        passwordHash: hashedPassword,
+        salt: 'salt',
+        user: {
+          id: 'user-uuid',
+          tenantId: defaultTenant.id,
+          role: 'USER',
+          username: loginInput.username,
+          name: 'Test User',
+          bio: null,
+          email: null,
+          deletedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+
+      const session = await authService.login(loginInput);
+
+      await expect(
+        authService.refreshSession(session.accessToken),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
     it('should return a new token pair for a valid refresh token', async () => {
       const loginInput = {
         username: 'testuser',
@@ -361,6 +397,42 @@ describe('AuthService', () => {
   });
 
   describe('logout', () => {
+    it('throws UnauthorizedException when given a refresh token instead of access token', async () => {
+      const loginInput = {
+        username: 'testuser',
+        password: 'password123',
+      };
+
+      const hashedPassword = await bcrypt.hash(loginInput.password, 10);
+
+      mockPrismaService.auth.findUnique.mockResolvedValue({
+        id: 'auth-uuid',
+        userId: 'user-uuid',
+        tenantId: defaultTenant.id,
+        username: loginInput.username,
+        passwordHash: hashedPassword,
+        salt: 'salt',
+        user: {
+          id: 'user-uuid',
+          tenantId: defaultTenant.id,
+          role: 'USER',
+          username: loginInput.username,
+          name: 'Test User',
+          bio: null,
+          email: null,
+          deletedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+
+      const session = await authService.login(loginInput);
+
+      await expect(authService.logout(session.refreshToken)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
     it('should delete refresh token key using jti from access token', async () => {
       const loginInput = {
         username: 'testuser',

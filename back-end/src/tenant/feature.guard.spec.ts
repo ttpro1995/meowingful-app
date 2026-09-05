@@ -46,6 +46,25 @@ describe('FeatureGuard', () => {
     } as ExecutionContext;
   };
 
+  const createHttpContext = (tenantId: string | null): ExecutionContext => {
+    const req = {
+      tenantContext: tenantId
+        ? {
+            tenantId,
+          }
+        : undefined,
+    };
+
+    return {
+      getType: () => 'http',
+      switchToHttp: () => ({
+        getRequest: () => req,
+      }),
+      getHandler: () => jest.fn(),
+      getClass: () => class TestController {},
+    } as unknown as ExecutionContext;
+  };
+
   beforeEach(() => {
     guard = new FeatureGuard(mockReflector, mockTenantConfigService);
     jest.clearAllMocks();
@@ -159,5 +178,106 @@ describe('FeatureGuard', () => {
     await expect(guard.canActivate(context)).rejects.toThrow(
       UnauthorizedException,
     );
+  });
+
+  it('ignores non-lead permission metadata (no feature inference)', async () => {
+    getAllAndOverride.mockImplementation((key: string) => {
+      if (key === REQUIRE_FEATURE_KEY) {
+        return undefined;
+      }
+
+      if (key === REQUIRE_PERMISSION_KEY) {
+        return 'course:create';
+      }
+
+      return undefined;
+    });
+
+    const context = createGraphqlContext('tenant-1');
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(getTenantConfigByTenantId).not.toHaveBeenCalled();
+  });
+
+  it('resolves feature from class-level metadata (getClass) when handler has none', async () => {
+    getAllAndOverride.mockImplementation((key: string) => {
+      if (key === REQUIRE_FEATURE_KEY) {
+        return 'elearning';
+      }
+
+      return undefined;
+    });
+
+    getTenantConfigByTenantId.mockResolvedValue({
+      features: {
+        elearning: true,
+      },
+    });
+
+    const context = createGraphqlContext('tenant-1');
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+  });
+
+  it('allows elearning feature when enabled', async () => {
+    getAllAndOverride.mockImplementation((key: string) => {
+      if (key === REQUIRE_FEATURE_KEY) {
+        return 'elearning';
+      }
+
+      return undefined;
+    });
+
+    getTenantConfigByTenantId.mockResolvedValue({
+      features: {
+        crm: false,
+        elearning: true,
+      },
+    });
+
+    const context = createGraphqlContext('tenant-1');
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+  });
+
+  it('throws FEATURE_DISABLED for elearning when disabled', async () => {
+    getAllAndOverride.mockImplementation((key: string) => {
+      if (key === REQUIRE_FEATURE_KEY) {
+        return 'elearning';
+      }
+
+      return undefined;
+    });
+
+    getTenantConfigByTenantId.mockResolvedValue({
+      features: {
+        elearning: false,
+      },
+    });
+
+    const context = createGraphqlContext('tenant-1');
+
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('uses HTTP context when getType returns http', async () => {
+    getAllAndOverride.mockImplementation((key: string) => {
+      if (key === REQUIRE_FEATURE_KEY) {
+        return 'crm';
+      }
+
+      return undefined;
+    });
+
+    getTenantConfigByTenantId.mockResolvedValue({
+      features: {
+        crm: true,
+      },
+    });
+
+    const context = createHttpContext('tenant-1');
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
   });
 });

@@ -160,6 +160,54 @@ describe('AuthResolver', () => {
       expect(res.cookie).toHaveBeenCalled();
       expect(result.accessToken).toBe('new-access-token');
     });
+
+    it('extracts refresh token from cookie header when cookies object is empty', async () => {
+      const req = {
+        cookies: {},
+        headers: {
+          cookie: 'refreshToken=header-refresh-token',
+        },
+      };
+      const res = createMockResponse();
+
+      const mockPayload = {
+        accessToken: 'new-access-token',
+        refreshToken: 'new-refresh-token',
+        user: {
+          id: 'user-uuid',
+          username: 'testuser',
+          name: 'Test User',
+          bio: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      };
+
+      mockAuthService.refreshSession.mockResolvedValue(mockPayload);
+
+      await authResolver.refreshToken(req as never, res as never);
+
+      expect(mockAuthService.refreshSession).toHaveBeenCalledWith(
+        'header-refresh-token',
+      );
+      expect(res.cookie).toHaveBeenCalled();
+    });
+
+    it('throws UnauthorizedException when no refresh token is present', async () => {
+      const req = {
+        cookies: {},
+        headers: {},
+      };
+      const res = createMockResponse();
+
+      mockAuthService.refreshSession.mockRejectedValue(
+        new Error('Refresh token missing'),
+      );
+
+      await expect(
+        authResolver.refreshToken(req as never, res as never),
+      ).rejects.toThrow();
+    });
   });
 
   describe('logout', () => {
