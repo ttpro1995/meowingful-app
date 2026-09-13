@@ -17,17 +17,18 @@ const defaultPermissions = [
   { code: 'lead:update', description: 'Update lead' },
   { code: 'lead:delete', description: 'Delete lead' },
   { code: 'lead:assign', description: 'Assign lead' },
+  { code: 'pipeline:manage', description: 'Manage sales pipelines and stages' },
   { code: 'course:create', description: 'Create course' },
   { code: 'course:enroll', description: 'Enroll in course' },
   { code: 'tenant:manage', description: 'Manage tenant' },
 ];
 
 const rolePermissionMatrix: Record<RoleName, string[]> = {
-  SUPER_ADMIN: ['lead:create', 'lead:update', 'lead:delete', 'lead:assign', 'course:create', 'course:enroll', 'tenant:manage'],
-  TENANT_ADMIN: ['lead:create', 'lead:update', 'lead:delete', 'lead:assign', 'course:create', 'course:enroll', 'tenant:manage'],
+  SUPER_ADMIN: ['lead:create', 'lead:update', 'lead:delete', 'lead:assign', 'pipeline:manage', 'course:create', 'course:enroll', 'tenant:manage'],
+  TENANT_ADMIN: ['lead:create', 'lead:update', 'lead:delete', 'lead:assign', 'pipeline:manage', 'course:create', 'course:enroll', 'tenant:manage'],
   DEVELOPER: [],
   DIRECTOR: [],
-  SALES_MANAGER: ['lead:create', 'lead:update', 'lead:delete', 'lead:assign'],
+  SALES_MANAGER: ['lead:create', 'lead:update', 'lead:delete', 'lead:assign', 'pipeline:manage'],
   STAFF: ['lead:create', 'lead:update'],
   ACCOUNTANT: [],
   HR: [],

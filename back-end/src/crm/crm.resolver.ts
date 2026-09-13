@@ -15,6 +15,13 @@ import {
   LeadsPayload,
   LeadsQueryInput,
   UpdateLeadInput,
+  CreatePipelineInput,
+  UpdatePipelineInput,
+  UpdatePipelineStageInput,
+  PipelineStageInput,
+  Pipeline,
+  PipelineStage,
+  PipelineBoard,
 } from './crm.types';
 
 @Resolver(() => Lead)
@@ -153,5 +160,73 @@ export class CrmResolver {
   async addLeadNote(@Args('input') input: AddLeadNoteInput): Promise<LeadNote> {
     const authorId = getTenantContext()?.userId ?? 'unknown';
     return this.crmService.addLeadNote(input, authorId);
+  }
+
+  @Mutation(() => Pipeline)
+  @RequirePermission('pipeline:manage')
+  async createPipeline(
+    @Args('input') input: CreatePipelineInput,
+  ): Promise<Pipeline> {
+    return this.crmService.createPipeline(input);
+  }
+
+  @Mutation(() => Pipeline)
+  @RequirePermission('pipeline:manage')
+  async updatePipeline(
+    @Args('pipelineId') pipelineId: string,
+    @Args('input') input: UpdatePipelineInput,
+  ): Promise<Pipeline> {
+    return this.crmService.updatePipeline(pipelineId, input);
+  }
+
+  @Mutation(() => Pipeline)
+  @RequirePermission('pipeline:manage')
+  async deletePipeline(
+    @Args('pipelineId') pipelineId: string,
+  ): Promise<Pipeline> {
+    return this.crmService.deletePipeline(pipelineId);
+  }
+
+  @Mutation(() => PipelineStage)
+  @RequirePermission('pipeline:manage')
+  async createPipelineStage(
+    @Args('pipelineId') pipelineId: string,
+    @Args('input') input: PipelineStageInput,
+  ): Promise<PipelineStage> {
+    return this.crmService.createStage(pipelineId, input);
+  }
+
+  @Mutation(() => PipelineStage)
+  @RequirePermission('pipeline:manage')
+  async updatePipelineStage(
+    @Args('stageId') stageId: string,
+    @Args('input') input: UpdatePipelineStageInput,
+  ): Promise<PipelineStage> {
+    return this.crmService.updateStage(stageId, input);
+  }
+
+  @Mutation(() => PipelineStage)
+  @RequirePermission('pipeline:manage')
+  async deletePipelineStage(
+    @Args('stageId') stageId: string,
+  ): Promise<PipelineStage> {
+    return this.crmService.deleteStage(stageId);
+  }
+
+  @Mutation(() => Lead)
+  @RequirePermission('lead:update')
+  async moveLeadToStage(
+    @Args('leadId') leadId: string,
+    @Args('stageId') stageId: string,
+  ): Promise<Lead> {
+    return this.crmService.moveLeadToStage(leadId, stageId);
+  }
+
+  @Query(() => PipelineBoard)
+  async pipelineBoard(
+    @Args('pipelineId') pipelineId: string,
+    @Args('query', { nullable: true }) query?: LeadsQueryInput,
+  ): Promise<PipelineBoard> {
+    return this.crmService.pipelineBoard(pipelineId, query);
   }
 }
