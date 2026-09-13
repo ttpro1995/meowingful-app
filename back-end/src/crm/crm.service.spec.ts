@@ -594,6 +594,7 @@ describe('CrmService', () => {
       expect(result.content).toBe('Follow up scheduled');
       expect(mockLeadNote.create).toHaveBeenCalledWith({
         data: {
+          tenantId: 'tenant-1',
           leadId: 'lead-1',
           authorId: 'user-1',
           content: 'Follow up scheduled',

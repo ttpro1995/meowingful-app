@@ -188,7 +188,7 @@ export class CrmService {
   }
 
   private normalizeCustomer(
-    customer: Prisma.CustomerGetPayload<Prisma.DefaultArgs>,
+    customer: Prisma.CustomerGetPayload<Prisma.CustomerDefaultArgs>,
   ): Customer {
     return {
       id: customer.id,
@@ -402,6 +402,7 @@ export class CrmService {
 
     return this.prisma.leadNote.create({
       data: {
+        tenantId,
         leadId: input.leadId,
         authorId,
         content: input.content,
