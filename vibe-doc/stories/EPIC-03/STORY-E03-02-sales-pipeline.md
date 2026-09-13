@@ -145,3 +145,5 @@ query pipelineBoard(pipelineId: ID!, filter: LeadsFilter): PipelineBoard
 ## Implementation Validation (2026-09-13)
 
 Implemented tenant-scoped pipeline, stage, transition, board, and SLA event handling in the CRM module, including RBAC permission seeding and a 15-minute scheduler. Verified with Prisma client generation, CRM Jest tests (43 passing), backend build, and lint. Prisma migration creation remains pending because no `DATABASE_URL` was available in the implementation environment.
+
+Review follow-up: board authorization, unsafe stage replacement, duplicate stage orders, concurrent SLA claims, and CRM queue shutdown cleanup were corrected. Remaining handoff items are generating/applying the Prisma migration with a target database and adding feature-specific pipeline tests.

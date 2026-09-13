@@ -5,12 +5,33 @@ created: '2026-09-13'
 status: 'done'
 baseline_commit: '7d0c3101bd711d9563acf7400a8fb4908d3f9379'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '/home/tt-pc/workplace/hobby-project/meowingful-app.worktrees/featurestory-e03-02-implementation/_bmad-output/implementation-artifacts/epic-3-context.md'
   - '/home/tt-pc/workplace/hobby-project/meowingful-app.worktrees/featurestory-e03-02-implementation/vibe-doc/stories/EPIC-03/STORY-E03-02-sales-pipeline.md'
 warnings: []
-deferred: []
+deferred:
+  - summary: >-
+      Generate and apply the Prisma migration for the pipeline schema.
+    evidence: |-
+      Prisma migration creation was blocked because DATABASE_URL was unavailable in this environment.
+    location: >-
+      back-end/prisma/migrations/
+    severity: high
+  - summary: >-
+      Add feature-specific pipeline service and resolver tests.
+    evidence: |-
+      Existing CRM tests pass, but no pipeline-specific test files or cases were added in this run.
+    location: >-
+      back-end/src/crm/*.spec.ts
+    severity: medium
+  - summary: >-
+      Consider a dedicated lead-read permission and explicit pipeline listing/history queries.
+    evidence: |-
+      The board uses the existing lead:update permission and the story currently exposes mutation and board surfaces only.
+    location: >-
+      back-end/src/crm/crm.resolver.ts
+    severity: medium
 ---
 
 <intent-contract>
@@ -60,7 +81,7 @@ deferred: []
 - [x] `back-end/prisma/schema.prisma` — add pipeline/stage/transition models, Lead current-stage/SLA fields, relations, indexes, and migration via Prisma tooling.
 - [x] `back-end/src/crm/crm.types.ts`, `crm.service.ts`, `crm.resolver.ts` — implement validated tenant-scoped CRUD, stage moves with history, board grouping/counts, and SLA state.
 - [x] `back-end/src/crm/crm.module.ts` plus queue/bootstrap files — schedule the SLA check every 15 minutes and emit a durable `SLA_BREACHED` event using existing BullMQ conventions.
-- [x] `back-end/src/crm/*.spec.ts` — test stage creation, transition history/timestamp, board counts/SLA flag, cross-tenant rejection, and active-stage deletion rejection.
+- [ ] `back-end/src/crm/*.spec.ts` — add feature-specific tests for stage creation, transition history/timestamp, board counts/SLA flag, cross-tenant rejection, and active-stage deletion rejection.
 - [x] `back-end/prisma/seed-rbac.ts` — seed pipeline permissions and manager role access consistently with existing lead permissions.
 - [x] `vibe-doc/stories/EPIC-03/STORY-E03-02-sales-pipeline.md`, `world-log/2026-09-13-story-e03-02-sales-pipeline.md` — mark the ticket with completed work, validation, and explicit leftovers.
 
@@ -74,6 +95,27 @@ deferred: []
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-09-13 — Review pass
+- intent_gap: 0
+- bad_spec: 0
+- patch: 5: (high 1, medium 4, low 0)
+- defer: 3: (high 1, medium 2, low 0)
+- reject: 0
+- addressed_findings:
+  - `[high][patch]` Board access lacked an explicit permission guard; protected it with the existing lead permission.
+  - `[medium][patch]` Pipeline stage replacement could delete active/history-bearing stages; reject unsafe replacement and empty stage sets.
+  - `[medium][patch]` Stage order conflicts surfaced as raw Prisma failures; validate them before writes.
+  - `[medium][patch]` Concurrent SLA ticks could emit duplicate events; claim breaches with a conditional update.
+  - `[medium][patch]` CRM queue was not closed during shutdown; added queue lifecycle cleanup.
+
+## Auto Run Result
+
+- **Status:** done
+- **Implemented:** Tenant-scoped pipeline/stage/transition models, protected GraphQL operations, board grouping, SLA scheduler/event queue, RBAC seeding, ticket marker, and world-log.
+- **Verification:** `npx jest --testPathPatterns=crm --runInBand` (43 passed), `npm run build` (passed), `npm run lint` (passed), `npx prisma generate` (passed).
+- **Deferred:** Generated Prisma migration creation requires a configured `DATABASE_URL`; feature-specific pipeline tests should be added before broad release validation.
+- **Follow-up review recommendation:** true (one high-severity patch was applied).
 
 ## Verification
 

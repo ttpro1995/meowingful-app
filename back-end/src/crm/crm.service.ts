@@ -558,12 +558,38 @@ export class CrmService {
     });
     if (!existing) throw new BadRequestException('Pipeline not found');
     if (input.stages) {
+      if (!input.stages.length) {
+        throw new BadRequestException('Pipeline requires at least one stage');
+      }
       const orders = input.stages.map((stage) => stage.order);
       if (new Set(orders).size !== orders.length)
         throw new BadRequestException('Stage orders must be unique');
     }
     const pipeline = await this.prisma.$transaction(async (tx) => {
       if (input.stages) {
+        const activeLeadCount = await tx.lead.count({
+          where: { tenantId, pipelineId },
+        });
+        if (activeLeadCount) {
+          throw new ConflictException(
+            'Cannot replace pipeline stages while leads are active',
+          );
+        }
+        const stageIds = await tx.pipelineStage.findMany({
+          where: { pipelineId },
+          select: { id: true },
+        });
+        const transitionCount = await tx.stageTransition.count({
+          where: {
+            tenantId,
+            toStageId: { in: stageIds.map((stage) => stage.id) },
+          },
+        });
+        if (transitionCount) {
+          throw new ConflictException(
+            'Cannot replace pipeline stages after transitions exist',
+          );
+        }
         await tx.pipelineStage.deleteMany({ where: { pipelineId } });
         await tx.pipelineStage.createMany({
           data: input.stages.map((stage) => ({
@@ -607,6 +633,14 @@ export class CrmService {
       where: { id: pipelineId, tenantId },
     });
     if (!pipeline) throw new BadRequestException('Pipeline not found');
+    const duplicateOrder = await this.prisma.pipelineStage.findFirst({
+      where: { pipelineId, order: input.order },
+    });
+    if (duplicateOrder) {
+      throw new ConflictException(
+        'Stage order must be unique within a pipeline',
+      );
+    }
     return this.normalizeStage(
       await this.prisma.pipelineStage.create({
         data: { pipelineId, ...input, color: input.color ?? '#6B7280' },
@@ -623,6 +657,20 @@ export class CrmService {
       where: { id: stageId, pipeline: { tenantId } },
     });
     if (!stage) throw new BadRequestException('Pipeline stage not found');
+    if (input.order !== undefined) {
+      const duplicateOrder = await this.prisma.pipelineStage.findFirst({
+        where: {
+          pipelineId: stage.pipelineId,
+          order: input.order,
+          id: { not: stageId },
+        },
+      });
+      if (duplicateOrder) {
+        throw new ConflictException(
+          'Stage order must be unique within a pipeline',
+        );
+      }
+    }
     return this.normalizeStage(
       await this.prisma.pipelineStage.update({
         where: { id: stageId },
@@ -737,28 +785,20 @@ export class CrmService {
         include: { notes: true },
       });
       for (const lead of leads) {
-        await this.prisma.lead.update({
-          where: { id: lead.id },
+        const updated = await this.prisma.lead.updateMany({
+          where: { id: lead.id, slaBreached: false },
           data: { slaBreached: true },
         });
-        try {
-          if (!this.eventQueue)
-            throw new Error('CRM event queue is unavailable');
-          await this.eventQueue.add('SLA_BREACHED', {
-            event: 'SLA_BREACHED',
-            tenantId: lead.tenantId,
-            leadId: lead.id,
-            pipelineId: stage.pipelineId,
-            stageId: stage.id,
-            occurredAt: now.toISOString(),
-          });
-        } catch (error: unknown) {
-          await this.prisma.lead.update({
-            where: { id: lead.id },
-            data: { slaBreached: false },
-          });
-          throw error;
-        }
+        if (!updated.count) continue;
+        if (!this.eventQueue) throw new Error('CRM event queue is unavailable');
+        await this.eventQueue.add('SLA_BREACHED', {
+          event: 'SLA_BREACHED',
+          tenantId: lead.tenantId,
+          leadId: lead.id,
+          pipelineId: stage.pipelineId,
+          stageId: stage.id,
+          occurredAt: now.toISOString(),
+        });
         breached++;
       }
     }

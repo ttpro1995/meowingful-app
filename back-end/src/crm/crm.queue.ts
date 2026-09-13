@@ -1,4 +1,5 @@
 import {
+  Inject,
   Injectable,
   Logger,
   OnModuleDestroy,
@@ -39,6 +40,18 @@ export class CrmScheduler implements OnModuleInit, OnModuleDestroy {
 
   onModuleDestroy(): void {
     if (this.timer) clearInterval(this.timer);
+  }
+}
+
+@Injectable()
+export class CrmQueueLifecycle implements OnModuleDestroy {
+  constructor(
+    @Inject(CRM_EVENT_QUEUE_TOKEN)
+    private readonly queue: CrmEventQueue,
+  ) {}
+
+  async onModuleDestroy(): Promise<void> {
+    await this.queue.close();
   }
 }
 

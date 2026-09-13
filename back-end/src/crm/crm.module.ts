@@ -5,7 +5,11 @@ import { FeatureGuard } from '../tenant/feature.guard';
 import { TenantGuard } from '../tenant/tenant.guard';
 import { CrmResolver } from './crm.resolver';
 import { CrmService } from './crm.service';
-import { CrmScheduler, crmEventQueueProvider } from './crm.queue';
+import {
+  CrmQueueLifecycle,
+  CrmScheduler,
+  crmEventQueueProvider,
+} from './crm.queue';
 
 @Global()
 @Module({
@@ -14,6 +18,7 @@ import { CrmScheduler, crmEventQueueProvider } from './crm.queue';
     CrmResolver,
     CrmService,
     CrmScheduler,
+    CrmQueueLifecycle,
     crmEventQueueProvider,
     TenantGuard,
     FeatureGuard,

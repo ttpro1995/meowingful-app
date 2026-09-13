@@ -223,6 +223,7 @@ export class CrmResolver {
   }
 
   @Query(() => PipelineBoard)
+  @RequirePermission('lead:update')
   async pipelineBoard(
     @Args('pipelineId') pipelineId: string,
     @Args('query', { nullable: true }) query?: LeadsQueryInput,
