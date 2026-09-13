@@ -64,6 +64,15 @@ export class Lead {
   @Field(() => String, { nullable: true })
   pipelineStageId?: string;
 
+  @Field(() => String, { nullable: true })
+  pipelineId?: string;
+
+  @Field(() => Date, { nullable: true })
+  stageEnteredAt?: Date;
+
+  @Field(() => Boolean)
+  slaBreached: boolean;
+
   @Field(() => Date)
   createdAt: Date;
 
@@ -283,4 +292,120 @@ export class AddLeadNoteInput {
   @IsNotEmpty()
   @IsString()
   content: string;
+}
+
+@ObjectType()
+export class PipelineStage {
+  @Field(() => String) id: string;
+  @Field(() => String) pipelineId: string;
+  @Field(() => String) name: string;
+  @Field(() => Int) order: number;
+  @Field(() => String) color: string;
+  @Field(() => Int, { nullable: true }) slaDurationH?: number;
+}
+
+@ObjectType()
+export class Pipeline {
+  @Field(() => String) id: string;
+  @Field(() => String) tenantId: string;
+  @Field(() => String) name: string;
+  @Field(() => [PipelineStage]) stages: PipelineStage[];
+  @Field(() => Date) createdAt: Date;
+  @Field(() => Date) updatedAt: Date;
+}
+
+@InputType()
+export class PipelineStageInput {
+  @Field(() => String)
+  @IsNotEmpty()
+  @IsString()
+  name: string;
+
+  @Field(() => Int)
+  @IsInt()
+  @Min(0)
+  order: number;
+
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  color?: string;
+
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  slaDurationH?: number;
+}
+
+@InputType()
+export class CreatePipelineInput {
+  @Field(() => String)
+  @IsNotEmpty()
+  @IsString()
+  name: string;
+
+  @Field(() => [PipelineStageInput])
+  @ValidateNested({ each: true })
+  @Type(() => PipelineStageInput)
+  stages: PipelineStageInput[];
+}
+
+@InputType()
+export class UpdatePipelineInput {
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @Field(() => [PipelineStageInput], { nullable: true })
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => PipelineStageInput)
+  stages?: PipelineStageInput[];
+}
+
+@InputType()
+export class UpdatePipelineStageInput {
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  name?: string;
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  order?: number;
+  @Field(() => String, { nullable: true })
+  @IsOptional()
+  @IsString()
+  color?: string;
+  @Field(() => Int, { nullable: true })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  slaDurationH?: number;
+}
+
+@ObjectType()
+export class StageTransition {
+  @Field(() => String) id: string;
+  @Field(() => String) leadId: string;
+  @Field(() => String, { nullable: true }) fromStageId?: string;
+  @Field(() => String) toStageId: string;
+  @Field(() => String) movedByUserId: string;
+  @Field(() => Date) movedAt: Date;
+}
+
+@ObjectType()
+export class BoardColumn {
+  @Field(() => PipelineStage) stage: PipelineStage;
+  @Field(() => [Lead]) leads: Lead[];
+  @Field(() => Int) totalCount: number;
+}
+
+@ObjectType()
+export class PipelineBoard {
+  @Field(() => Pipeline) pipeline: Pipeline;
+  @Field(() => [BoardColumn]) columns: BoardColumn[];
 }

@@ -26,24 +26,26 @@ enum AuditAction {
 }
 
 model Tenant {
-  id           String           @id @default(uuid())
-  name         String
-  slug         String           @unique
-  planTier     String           @default("basic")
-  contactEmail String
-  isActive     Boolean          @default(true)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  config       TenantConfig?
-  users        User[]
-  authRecords  Auth[]
-  roles        Role[]
-  userRoles    UserTenantRole[]
-  invitations  Invitation[]
-  auditLogs    AuditLog[]
-  leads        Lead[]
-  customers    Customer[]
-  leadNotes    LeadNote[]
+  id               String            @id @default(uuid())
+  name             String
+  slug             String            @unique
+  planTier         String            @default("basic")
+  contactEmail     String
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  config           TenantConfig?
+  users            User[]
+  authRecords      Auth[]
+  roles            Role[]
+  userRoles        UserTenantRole[]
+  invitations      Invitation[]
+  auditLogs        AuditLog[]
+  leads            Lead[]
+  customers        Customer[]
+  leadNotes        LeadNote[]
+  pipelines        Pipeline[]
+  stageTransitions StageTransition[]
 }
 
 model AuditLog {
@@ -82,20 +84,20 @@ model TenantConfig {
 }
 
 model User {
-  id        String           @id @default(uuid())
-  tenantId  String
-  username  String
-  name      String
-  bio       String?
-  email     String?          @unique
-  role      UserRole         @default(USER)
-  deletedAt DateTime?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  tenant    Tenant           @relation(fields: [tenantId], references: [id])
-  auth      Auth?
-  userRoles UserTenantRole[]
-  auditLogs AuditLog[]
+  id            String           @id @default(uuid())
+  tenantId      String
+  username      String
+  name          String
+  bio           String?
+  email         String?          @unique
+  role          UserRole         @default(USER)
+  deletedAt     DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  tenant        Tenant           @relation(fields: [tenantId], references: [id])
+  auth          Auth?
+  userRoles     UserTenantRole[]
+  auditLogs     AuditLog[]
   assignedLeads Lead[]
   authoredNotes LeadNote[]
 
@@ -200,25 +202,79 @@ enum LeadStatus {
 }
 
 model Lead {
-  id              String     @id @default(uuid())
-  tenantId        String
-  name            String
-  email           String?
-  phone           String?
-  source          String?
-  status          LeadStatus @default(NEW)
-  score           Int?
-  assignedToId    String?
-  pipelineStageId String?
-  notes           LeadNote[]
-  customer        Customer?
-  tenant          Tenant     @relation(fields: [tenantId], references: [id])
-  assignedTo      User?      @relation(fields: [assignedToId], references: [id])
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  id               String            @id @default(uuid())
+  tenantId         String
+  name             String
+  email            String?
+  phone            String?
+  source           String?
+  status           LeadStatus        @default(NEW)
+  score            Int?
+  assignedToId     String?
+  pipelineStageId  String?
+  pipelineId       String?
+  pipeline         Pipeline?         @relation(fields: [pipelineId], references: [id])
+  pipelineStage    PipelineStage?    @relation(fields: [pipelineStageId], references: [id])
+  stageEnteredAt   DateTime?
+  slaBreached      Boolean           @default(false)
+  notes            LeadNote[]
+  customer         Customer?
+  tenant           Tenant            @relation(fields: [tenantId], references: [id])
+  assignedTo       User?             @relation(fields: [assignedToId], references: [id])
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  stageTransitions StageTransition[]
 
   @@index([tenantId, status])
   @@index([tenantId, assignedToId])
+  @@index([tenantId, pipelineStageId])
+  @@index([tenantId, pipelineId])
+  @@index([tenantId, stageEnteredAt, slaBreached])
+}
+
+model Pipeline {
+  id        String          @id @default(uuid())
+  tenantId  String
+  name      String
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  stages    PipelineStage[]
+  leads     Lead[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model PipelineStage {
+  id           String            @id @default(uuid())
+  pipelineId   String
+  name         String
+  order        Int
+  color        String            @default("#6B7280")
+  slaDurationH Int?
+  pipeline     Pipeline          @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  leads        Lead[]
+  transitions  StageTransition[] @relation("ToStage")
+
+  @@unique([pipelineId, order])
+  @@index([pipelineId, order])
+}
+
+model StageTransition {
+  id            String        @id @default(uuid())
+  tenantId      String
+  leadId        String
+  fromStageId   String?
+  toStageId     String
+  movedByUserId String
+  movedAt       DateTime      @default(now())
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead          Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  toStage       PipelineStage @relation("ToStage", fields: [toStageId], references: [id])
+
+  @@index([tenantId, leadId, movedAt])
+  @@index([tenantId, toStageId])
 }
 
 model LeadNote {

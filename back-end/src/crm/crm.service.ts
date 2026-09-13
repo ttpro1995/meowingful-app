@@ -1,7 +1,9 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma, LeadStatus } from '@prisma/client';
@@ -17,11 +19,20 @@ import {
   LeadsPayload,
   LeadsQueryInput,
   UpdateLeadInput,
+  CreatePipelineInput,
+  UpdatePipelineInput,
+  Pipeline,
+  PipelineStage,
+  PipelineBoard,
+  UpdatePipelineStageInput,
+  PipelineStageInput,
+  BoardColumn,
 } from './crm.types';
 import { getTenantContext } from '../tenant/tenant-context.storage';
 import { DateFilter, StringFilter } from '../shared/pagination/filter.types';
 import { SortDirection } from '../shared/pagination/pagination.args';
 import { paginate } from '../shared/pagination/paginate';
+import { CRM_EVENT_QUEUE_TOKEN } from './crm.queue';
 
 const LEAD_SORTABLE_FIELDS = new Set([
   'createdAt',
@@ -34,7 +45,14 @@ const LEAD_SORTABLE_FIELDS = new Set([
 
 @Injectable()
 export class CrmService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional()
+    @Inject(CRM_EVENT_QUEUE_TOKEN)
+    private readonly eventQueue?: {
+      add(name: string, data: Record<string, unknown>): Promise<unknown>;
+    },
+  ) {}
 
   private assertAuthenticated(): string {
     const context = getTenantContext();
@@ -175,6 +193,9 @@ export class CrmService {
       score: lead.score ?? undefined,
       assignedToId: lead.assignedToId ?? undefined,
       pipelineStageId: lead.pipelineStageId ?? undefined,
+      pipelineId: lead.pipelineId ?? undefined,
+      stageEnteredAt: lead.stageEnteredAt ?? undefined,
+      slaBreached: lead.slaBreached,
       notes: lead.notes.map((note) => ({
         id: note.id,
         leadId: note.leadId,
@@ -470,5 +491,317 @@ export class CrmService {
         totalPages: totalCount === 0 ? 0 : Math.ceil(totalCount / limit),
       },
     };
+  }
+
+  private normalizeStage(stage: {
+    id: string;
+    pipelineId: string;
+    name: string;
+    order: number;
+    color: string;
+    slaDurationH: number | null;
+  }): PipelineStage {
+    return { ...stage, slaDurationH: stage.slaDurationH ?? undefined };
+  }
+
+  private normalizePipeline(pipeline: {
+    id: string;
+    tenantId: string;
+    name: string;
+    createdAt: Date;
+    updatedAt: Date;
+    stages: Array<{
+      id: string;
+      pipelineId: string;
+      name: string;
+      order: number;
+      color: string;
+      slaDurationH: number | null;
+    }>;
+  }): Pipeline {
+    return {
+      ...pipeline,
+      stages: pipeline.stages.map((stage) => this.normalizeStage(stage)),
+    };
+  }
+
+  async createPipeline(input: CreatePipelineInput): Promise<Pipeline> {
+    const tenantId = this.assertAuthenticated();
+    if (!input.stages.length)
+      throw new BadRequestException('Pipeline requires at least one stage');
+    const orders = input.stages.map((stage) => stage.order);
+    if (new Set(orders).size !== orders.length)
+      throw new BadRequestException('Stage orders must be unique');
+    const pipeline = await this.prisma.pipeline.create({
+      data: {
+        tenantId,
+        name: input.name,
+        stages: {
+          create: input.stages.map((stage) => ({
+            ...stage,
+            color: stage.color ?? '#6B7280',
+          })),
+        },
+      },
+      include: { stages: { orderBy: { order: 'asc' } } },
+    });
+    return this.normalizePipeline(pipeline);
+  }
+
+  async updatePipeline(
+    pipelineId: string,
+    input: UpdatePipelineInput,
+  ): Promise<Pipeline> {
+    const tenantId = this.assertAuthenticated();
+    const existing = await this.prisma.pipeline.findFirst({
+      where: { id: pipelineId, tenantId },
+    });
+    if (!existing) throw new BadRequestException('Pipeline not found');
+    if (input.stages) {
+      if (!input.stages.length) {
+        throw new BadRequestException('Pipeline requires at least one stage');
+      }
+      const orders = input.stages.map((stage) => stage.order);
+      if (new Set(orders).size !== orders.length)
+        throw new BadRequestException('Stage orders must be unique');
+    }
+    const pipeline = await this.prisma.$transaction(async (tx) => {
+      if (input.stages) {
+        const activeLeadCount = await tx.lead.count({
+          where: { tenantId, pipelineId },
+        });
+        if (activeLeadCount) {
+          throw new ConflictException(
+            'Cannot replace pipeline stages while leads are active',
+          );
+        }
+        const stageIds = await tx.pipelineStage.findMany({
+          where: { pipelineId },
+          select: { id: true },
+        });
+        const transitionCount = await tx.stageTransition.count({
+          where: {
+            tenantId,
+            toStageId: { in: stageIds.map((stage) => stage.id) },
+          },
+        });
+        if (transitionCount) {
+          throw new ConflictException(
+            'Cannot replace pipeline stages after transitions exist',
+          );
+        }
+        await tx.pipelineStage.deleteMany({ where: { pipelineId } });
+        await tx.pipelineStage.createMany({
+          data: input.stages.map((stage) => ({
+            pipelineId,
+            ...stage,
+            color: stage.color ?? '#6B7280',
+          })),
+        });
+      }
+      return tx.pipeline.update({
+        where: { id: pipelineId },
+        data: { name: input.name },
+        include: { stages: { orderBy: { order: 'asc' } } },
+      });
+    });
+    return this.normalizePipeline(pipeline);
+  }
+
+  async deletePipeline(pipelineId: string): Promise<Pipeline> {
+    const tenantId = this.assertAuthenticated();
+    const existing = await this.prisma.pipeline.findFirst({
+      where: { id: pipelineId, tenantId },
+      include: { stages: true },
+    });
+    if (!existing) throw new BadRequestException('Pipeline not found');
+    const active = await this.prisma.lead.count({
+      where: { tenantId, pipelineId },
+    });
+    if (active)
+      throw new ConflictException('Cannot delete pipeline with active leads');
+    await this.prisma.pipeline.delete({ where: { id: pipelineId } });
+    return this.normalizePipeline({ ...existing, stages: existing.stages });
+  }
+
+  async createStage(
+    pipelineId: string,
+    input: PipelineStageInput,
+  ): Promise<PipelineStage> {
+    const tenantId = this.assertAuthenticated();
+    const pipeline = await this.prisma.pipeline.findFirst({
+      where: { id: pipelineId, tenantId },
+    });
+    if (!pipeline) throw new BadRequestException('Pipeline not found');
+    const duplicateOrder = await this.prisma.pipelineStage.findFirst({
+      where: { pipelineId, order: input.order },
+    });
+    if (duplicateOrder) {
+      throw new ConflictException(
+        'Stage order must be unique within a pipeline',
+      );
+    }
+    return this.normalizeStage(
+      await this.prisma.pipelineStage.create({
+        data: { pipelineId, ...input, color: input.color ?? '#6B7280' },
+      }),
+    );
+  }
+
+  async updateStage(
+    stageId: string,
+    input: UpdatePipelineStageInput,
+  ): Promise<PipelineStage> {
+    const tenantId = this.assertAuthenticated();
+    const stage = await this.prisma.pipelineStage.findFirst({
+      where: { id: stageId, pipeline: { tenantId } },
+    });
+    if (!stage) throw new BadRequestException('Pipeline stage not found');
+    if (input.order !== undefined) {
+      const duplicateOrder = await this.prisma.pipelineStage.findFirst({
+        where: {
+          pipelineId: stage.pipelineId,
+          order: input.order,
+          id: { not: stageId },
+        },
+      });
+      if (duplicateOrder) {
+        throw new ConflictException(
+          'Stage order must be unique within a pipeline',
+        );
+      }
+    }
+    return this.normalizeStage(
+      await this.prisma.pipelineStage.update({
+        where: { id: stageId },
+        data: input,
+      }),
+    );
+  }
+
+  async deleteStage(stageId: string): Promise<PipelineStage> {
+    const tenantId = this.assertAuthenticated();
+    const stage = await this.prisma.pipelineStage.findFirst({
+      where: { id: stageId, pipeline: { tenantId } },
+    });
+    if (!stage) throw new BadRequestException('Pipeline stage not found');
+    const active = await this.prisma.lead.count({
+      where: { tenantId, pipelineStageId: stageId },
+    });
+    if (active)
+      throw new ConflictException('Cannot delete stage with active leads');
+    await this.prisma.pipelineStage.delete({ where: { id: stageId } });
+    return this.normalizeStage(stage);
+  }
+
+  async moveLeadToStage(leadId: string, stageId: string): Promise<Lead> {
+    const tenantId = this.assertAuthenticated();
+    const userId = getTenantContext()?.userId;
+    if (!userId) throw new UnauthorizedException('UNAUTHORIZED');
+    const lead = await this.prisma.lead.findFirst({
+      where: { id: leadId, tenantId },
+    });
+    const stage = await this.prisma.pipelineStage.findFirst({
+      where: { id: stageId, pipeline: { tenantId } },
+    });
+    if (!lead) throw new BadRequestException('Lead not found');
+    if (!stage) throw new BadRequestException('Pipeline stage not found');
+    if (lead.pipelineId && lead.pipelineId !== stage.pipelineId)
+      throw new BadRequestException('Stage belongs to a different pipeline');
+    const now = new Date();
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.stageTransition.create({
+        data: {
+          tenantId,
+          leadId,
+          fromStageId: lead.pipelineStageId,
+          toStageId: stageId,
+          movedByUserId: userId,
+          movedAt: now,
+        },
+      });
+      return tx.lead.update({
+        where: { id: leadId },
+        data: {
+          pipelineId: stage.pipelineId,
+          pipelineStageId: stageId,
+          stageEnteredAt: now,
+          slaBreached: false,
+        },
+        include: { notes: true },
+      });
+    });
+    return this.normalizeLead(updated);
+  }
+
+  async pipelineBoard(
+    pipelineId: string,
+    query?: LeadsQueryInput,
+  ): Promise<PipelineBoard> {
+    const tenantId = this.assertAuthenticated();
+    const pipeline = await this.prisma.pipeline.findFirst({
+      where: { id: pipelineId, tenantId },
+      include: { stages: { orderBy: { order: 'asc' } } },
+    });
+    if (!pipeline) throw new BadRequestException('Pipeline not found');
+    const where = {
+      tenantId,
+      pipelineId,
+      ...this.buildLeadsWhereInput(query?.filter),
+    };
+    const leads = await this.prisma.lead.findMany({
+      where,
+      orderBy: { createdAt: 'asc' },
+      include: { notes: true },
+    });
+    const normalized = leads.map((lead) => this.normalizeLead(lead));
+    const columns: BoardColumn[] = pipeline.stages.map((stage) => ({
+      stage: this.normalizeStage(stage),
+      leads: normalized.filter((lead) => lead.pipelineStageId === stage.id),
+      totalCount: normalized.filter((lead) => lead.pipelineStageId === stage.id)
+        .length,
+    }));
+    return { pipeline: this.normalizePipeline(pipeline), columns };
+  }
+
+  async checkSlaBreaches(): Promise<number> {
+    const now = new Date();
+    const stages = await this.prisma.pipelineStage.findMany({
+      where: { slaDurationH: { not: null } },
+      include: { pipeline: true },
+    });
+    let breached = 0;
+    for (const stage of stages) {
+      const cutoff = new Date(
+        now.getTime() - (stage.slaDurationH ?? 0) * 3600000,
+      );
+      const leads = await this.prisma.lead.findMany({
+        where: {
+          tenantId: stage.pipeline.tenantId,
+          pipelineStageId: stage.id,
+          slaBreached: false,
+          stageEnteredAt: { lt: cutoff },
+        },
+        include: { notes: true },
+      });
+      for (const lead of leads) {
+        const updated = await this.prisma.lead.updateMany({
+          where: { id: lead.id, slaBreached: false },
+          data: { slaBreached: true },
+        });
+        if (!updated.count) continue;
+        if (!this.eventQueue) throw new Error('CRM event queue is unavailable');
+        await this.eventQueue.add('SLA_BREACHED', {
+          event: 'SLA_BREACHED',
+          tenantId: lead.tenantId,
+          leadId: lead.id,
+          pipelineId: stage.pipelineId,
+          stageId: stage.id,
+          occurredAt: now.toISOString(),
+        });
+        breached++;
+      }
+    }
+    return breached;
   }
 }
