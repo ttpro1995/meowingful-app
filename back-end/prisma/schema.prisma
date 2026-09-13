@@ -41,6 +41,9 @@ model Tenant {
   userRoles    UserTenantRole[]
   invitations  Invitation[]
   auditLogs    AuditLog[]
+  leads        Lead[]
+  customers    Customer[]
+  leadNotes    LeadNote[]
 }
 
 model AuditLog {
@@ -93,6 +96,8 @@ model User {
   auth      Auth?
   userRoles UserTenantRole[]
   auditLogs AuditLog[]
+  assignedLeads Lead[]
+  authoredNotes LeadNote[]
 
   @@unique([tenantId, username])
   @@index([tenantId])
@@ -183,4 +188,64 @@ model RolePermission {
   permission   Permission @relation(fields: [permissionId], references: [id])
 
   @@id([roleId, permissionId])
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  UNQUALIFIED
+  CONVERTED
+  LOST
+}
+
+model Lead {
+  id              String     @id @default(uuid())
+  tenantId        String
+  name            String
+  email           String?
+  phone           String?
+  source          String?
+  status          LeadStatus @default(NEW)
+  score           Int?
+  assignedToId    String?
+  pipelineStageId String?
+  notes           LeadNote[]
+  customer        Customer?
+  tenant          Tenant     @relation(fields: [tenantId], references: [id])
+  assignedTo      User?      @relation(fields: [assignedToId], references: [id])
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([tenantId, status])
+  @@index([tenantId, assignedToId])
+}
+
+model LeadNote {
+  id        String   @id @default(uuid())
+  tenantId  String
+  leadId    String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([leadId, createdAt])
+  @@index([tenantId])
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  tenantId  String
+  leadId    String?  @unique
+  name      String
+  email     String?
+  phone     String?
+  createdAt DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  lead      Lead?    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
 }

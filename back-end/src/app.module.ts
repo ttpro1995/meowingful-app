@@ -17,6 +17,7 @@ import { RbacModule } from './rbac/rbac.module';
 import { MembershipModule } from './membership/membership.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { AuditModule } from './audit/audit.module';
+import { CrmModule } from './crm/crm.module';
 import { formatGraphQLError } from './shared/errors/error-format.plugin';
 import { UserError } from './shared/errors/user-error.type';
 
@@ -83,6 +84,7 @@ import { UserError } from './shared/errors/user-error.type';
     MembershipModule,
     DashboardModule,
     AuditModule,
+    CrmModule,
   ],
   controllers: [AppController],
   providers: [AppService],
